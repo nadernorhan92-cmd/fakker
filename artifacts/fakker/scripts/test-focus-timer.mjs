@@ -1,18 +1,154 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { IDBObjectStore, indexedDB } from 'fake-indexeddb';
 import ts from 'typescript';
 import { test } from 'node:test';
 
-const source = readFileSync(new URL('../src/lib/focus-timer.ts', import.meta.url), 'utf8');
-const { outputText } = ts.transpileModule(source, {
+const transpile = source => ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-});
-const { initialFocusTimer, validateFocusTimer, remainingTime, transitionTimer, completedFocusSession } =
-  await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+}).outputText;
+const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(transpile(source)).toString('base64')}`;
+const focusTimerSource = readFileSync(new URL('../src/lib/focus-timer.ts', import.meta.url), 'utf8');
+const focusTimerModule = await import(moduleUrl(focusTimerSource));
+const { initialFocusTimer, validateFocusTimer, remainingTime, transitionTimer, completedFocusSession } = focusTimerModule;
 const now = 1_800_000_000_000;
 const act = (s, type, at = now) => transitionTimer(s, { type }, at);
 const roundtrip = s => validateFocusTimer(JSON.parse(JSON.stringify(s)));
 
+// Exercise the production IndexedDB module with only unrelated collaborators
+// stubbed; the database transaction and timer logic remain real.
+let studyDbSource = readFileSync(new URL('../src/lib/study-db.ts', import.meta.url), 'utf8');
+studyDbSource = studyDbSource
+  .replace(
+    "import { backgroundEnabled, disableBackgroundReminders, syncBackgroundReminders, withReminderLock } from './background-reminders';",
+    'const backgroundEnabled = () => false; const disableBackgroundReminders = async () => {}; const syncBackgroundReminders = async () => {}; const withReminderLock = work => work();',
+  )
+  .replace(
+    "import { completedFocusSession, initialFocusTimer, transitionTimer, validateFocusTimer, type FocusSession, type FocusTimerState, type TimerAction } from './focus-timer';",
+    `const { completedFocusSession, initialFocusTimer, transitionTimer, validateFocusTimer } = await import('${moduleUrl(focusTimerSource)}');`,
+  )
+  .replace(
+    "import { planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';",
+    'const planReviewChange = () => { throw new Error("spaced reviews are outside this test"); };',
+  );
+const studyDb = await import(moduleUrl(studyDbSource));
+
+globalThis.indexedDB = indexedDB;
+globalThis.window = globalThis;
+globalThis.document = { addEventListener() {}, removeEventListener() {} };
+let clock = now;
+Date.now = () => clock;
+globalThis.setInterval = () => 0;
+globalThis.clearInterval = () => {};
+globalThis.addEventListener = () => {};
+globalThis.removeEventListener = () => {};
+
+const channels = new Map();
+class TestBroadcastChannel {
+  constructor(name) {
+    this.name = name;
+    this.onmessage = null;
+    this.listeners = new Set();
+    const peers = channels.get(name) ?? new Set();
+    peers.add(this);
+    channels.set(name, peers);
+  }
+  postMessage(data) {
+    for (const peer of channels.get(this.name) ?? []) {
+      if (peer !== this) {
+        peer.onmessage?.({ data });
+        for (const listener of peer.listeners) listener({ data });
+      }
+    }
+  }
+  addEventListener(type, listener) { if (type === 'message') this.listeners.add(listener); }
+  removeEventListener(type, listener) { this.listeners.delete(listener); }
+  close() { channels.get(this.name)?.delete(this); }
+}
+globalThis.BroadcastChannel = TestBroadcastChannel;
+
+function createReactHookRuntime() {
+  const states = [];
+  const refs = [];
+  const callbacks = [];
+  const effects = [];
+  let stateCursor = 0;
+  let refCursor = 0;
+  let callbackCursor = 0;
+  let effectCursor = 0;
+  const sameDeps = (a, b) => a && b && a.length === b.length && a.every((item, i) => Object.is(item, b[i]));
+  return {
+    react: {
+      useState(initial) {
+        const index = stateCursor++;
+        if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial;
+        return [states[index], value => {
+          states[index] = typeof value === 'function' ? value(states[index]) : value;
+        }];
+      },
+      useRef(initial) {
+        const index = refCursor++;
+        if (!(index in refs)) refs[index] = { current: initial };
+        return refs[index];
+      },
+      useCallback(callback, deps) {
+        const index = callbackCursor++;
+        if (!callbacks[index] || !sameDeps(callbacks[index].deps, deps)) callbacks[index] = { callback, deps };
+        return callbacks[index].callback;
+      },
+      useEffect(effect, deps) {
+        const index = effectCursor++;
+        if (!effects[index] || !sameDeps(effects[index].deps, deps)) {
+          effects[index]?.cleanup?.();
+          effects[index] = { deps, cleanup: effect() };
+        }
+      },
+    },
+    resetCursors() {
+      stateCursor = 0;
+      refCursor = 0;
+      callbackCursor = 0;
+      effectCursor = 0;
+    },
+    cleanup() { for (const effect of effects) effect?.cleanup?.(); },
+  };
+}
+
+const hookSource = readFileSync(new URL('../src/lib/use-focus-timer.ts', import.meta.url), 'utf8')
+  .replace(
+    "import { useCallback, useEffect, useRef, useState } from 'react';",
+    'const useCallback = (...args) => globalThis.__focusTimerReact.useCallback(...args); const useEffect = (...args) => globalThis.__focusTimerReact.useEffect(...args); const useRef = (...args) => globalThis.__focusTimerReact.useRef(...args); const useState = (...args) => globalThis.__focusTimerReact.useState(...args);',
+  )
+  .replace(
+    "import { getStudyAccount, updateFocusTimer } from './study-db';",
+    'const { getStudyAccount, updateFocusTimer } = globalThis.__focusTimerDb;',
+  )
+  .replace(
+    "import { remainingTime, type FocusTimerState, type TimerAction } from './focus-timer';",
+    'const { remainingTime } = globalThis.__focusTimerModel;',
+  );
+globalThis.__focusTimerDb = studyDb;
+globalThis.__focusTimerModel = focusTimerModule;
+const useFocusTimer = (await import(moduleUrl(hookSource))).useFocusTimer;
+
+function mountTimerTab() {
+  const runtime = createReactHookRuntime();
+  globalThis.__focusTimerReact = runtime.react;
+  let current;
+  const render = () => {
+    runtime.resetCursors();
+    current = useFocusTimer();
+    return current;
+  };
+  render();
+  return { runtime, render, get current() { return current; }, unmount: () => runtime.cleanup() };
+}
+const settle = async (...tabs) => {
+  for (let i = 0; i < 8; i++) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    for (const tab of tabs) tab.render();
+  }
+};
 test('configuration is validated and links a task without changing it', () => {
   const s = transitionTimer(initialFocusTimer(), {
     type: 'configure', focusMinutes: 40, breakMinutes: 10, taskId: 'optional-task',
@@ -102,5 +238,117 @@ test('corrupt data fails explicitly rather than silently overwriting the timer',
     { ...initialFocusTimer(), remainingMs: -1 }, { ...initialFocusTimer(), taskId: 3 },
     { ...initialFocusTimer(), status: 'running', endsAt: null }]) {
     assert.throws(() => validateFocusTimer(value));
+  }
+});
+
+test('IndexedDB timer writes preserve plan records and stay separated by account', async () => {
+  studyDb.setStudyAccount(null);
+  const guestSubject = { id: 'guest-subject', name: 'رياضيات', color: '#c80' };
+  const guestTask = {
+    id: 'guest-task', title: 'واجب الجبر', subjectId: guestSubject.id,
+    type: 'homework', dueAt: '2026-10-25T10:00:00.000Z', priority: 'high', status: 'not-started',
+  };
+  const guestSettings = { studentName: 'طالبة', notificationsEnabled: true, reminderLeadMinutes: 45 };
+  await studyDb.saveSubject(guestSubject);
+  await studyDb.saveTask(guestTask);
+  await studyDb.saveSettings(guestSettings);
+  const beforeTimer = await studyDb.loadStudyData();
+
+  await studyDb.updateFocusTimer({ type: 'configure', focusMinutes: 35, breakMinutes: 8, taskId: guestTask.id });
+  await studyDb.updateFocusTimer({ type: 'start' });
+  assert.deepEqual(await studyDb.loadStudyData(), beforeTimer);
+
+  studyDb.setStudyAccount('focus-account-a');
+  const accountTimer = await studyDb.updateFocusTimer({ type: 'reconcile' });
+  assert.deepEqual(accountTimer.state, initialFocusTimer());
+  const accountSubject = { id: 'account-subject', name: 'علوم', color: '#08c' };
+  await studyDb.saveSubject(accountSubject);
+  await studyDb.updateFocusTimer({ type: 'configure', focusMinutes: 20, breakMinutes: 5, taskId: null });
+
+  studyDb.setStudyAccount(null);
+  const guestTimer = await studyDb.updateFocusTimer({ type: 'reconcile' });
+  assert.equal(guestTimer.state.status, 'running');
+  assert.equal(guestTimer.state.focusMinutes, 35);
+  assert.deepEqual(await studyDb.loadStudyData(), beforeTimer);
+  assert.deepEqual(await studyDb.readGuestPlan(), {
+    subjects: [guestSubject],
+    tasks: [{ ...guestTask, completedAt: undefined }],
+  });
+
+  studyDb.setStudyAccount('focus-account-a');
+  assert.equal((await studyDb.updateFocusTimer({ type: 'reconcile' })).state.focusMinutes, 20);
+  assert.deepEqual((await studyDb.loadStudyData()).subjects, [accountSubject]);
+  studyDb.setStudyAccount(null);
+});
+
+test('two open timer tabs serialize start, pause and reset, then restore the deadline after reload', async () => {
+  studyDb.setStudyAccount('focus-two-tabs');
+  const firstTab = mountTimerTab();
+  const secondTab = mountTimerTab();
+  await settle(firstTab, secondTab);
+  assert.equal(firstTab.current.state.status, 'idle');
+  assert.equal(secondTab.current.state.status, 'idle');
+
+  const starts = await Promise.all([firstTab.current.start(), secondTab.current.start()]);
+  assert.deepEqual(starts, [true, true]);
+  await settle(firstTab, secondTab);
+  assert.equal(firstTab.current.state.status, 'running');
+  assert.equal(secondTab.current.state.status, 'running');
+  assert.equal(firstTab.current.state.endsAt, secondTab.current.state.endsAt);
+
+  clock += 15_000;
+  assert.equal(await secondTab.current.pause(), true);
+  await settle(firstTab, secondTab);
+  assert.equal(firstTab.current.state.status, 'paused');
+  assert.equal(firstTab.current.state.remainingMs, 25 * 60_000 - 15_000);
+
+  assert.equal(await firstTab.current.start(), true);
+  await settle(firstTab, secondTab);
+  assert.equal(secondTab.current.state.status, 'running');
+  assert.equal(secondTab.current.state.endsAt, clock + 25 * 60_000 - 15_000);
+  assert.equal(await secondTab.current.reset(), true);
+  await settle(firstTab, secondTab);
+  assert.equal(firstTab.current.state.status, 'idle');
+  assert.equal(secondTab.current.state.status, 'idle');
+
+  assert.equal(await firstTab.current.start(), true);
+  await settle(firstTab, secondTab);
+  const saved = await studyDb.updateFocusTimer({ type: 'reconcile' });
+  const savedDeadline = saved.state.endsAt;
+  firstTab.unmount();
+  secondTab.unmount();
+
+  const reloadedTab = mountTimerTab();
+  await settle(reloadedTab);
+  assert.equal(reloadedTab.current.state.status, 'running');
+  assert.equal(reloadedTab.current.state.endsAt, savedDeadline);
+  clock += 10_000;
+  assert.equal(await reloadedTab.current.pause(), true);
+  reloadedTab.render();
+  assert.equal(reloadedTab.current.state.remainingMs, 25 * 60_000 - 10_000);
+  reloadedTab.unmount();
+  studyDb.setStudyAccount(null);
+});
+
+test('a failed IndexedDB write is rejected and the hook exposes an error without optimistic success', async () => {
+  studyDb.setStudyAccount('focus-write-failure');
+  const tab = mountTimerTab();
+  await settle(tab);
+  const originalPut = IDBObjectStore.prototype.put;
+  const quotaFailure = new Error('محاكاة تعذّر التخزين');
+  IDBObjectStore.prototype.put = function(value, ...args) {
+    if (value?.key === 'focus-timer') throw quotaFailure;
+    return originalPut.call(this, value, ...args);
+  };
+  try {
+    assert.equal(await tab.current.start(), false);
+    tab.render();
+    assert.equal(tab.current.state.status, 'idle');
+    assert.match(tab.current.error, /محاكاة تعذّر التخزين/);
+    assert.equal((await studyDb.updateFocusTimer({ type: 'reconcile' })).state.status, 'idle');
+  } finally {
+    IDBObjectStore.prototype.put = originalPut;
+    tab.unmount();
+    studyDb.setStudyAccount(null);
   }
 });
