@@ -1,5 +1,6 @@
 import { backgroundEnabled, disableBackgroundReminders, syncBackgroundReminders, withReminderLock } from './background-reminders';
 import { initialFocusTimer, transitionTimer, validateFocusTimer, type FocusTimerState, type TimerAction } from './focus-timer';
+import { planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';
 
 export type TaskType = 'homework' | 'study' | 'project' | 'exam';
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
@@ -8,6 +9,7 @@ export type Subject = { id: string; name: string; teacher?: string; color: strin
 export type Task = {
   id: string; title: string; description?: string; subjectId?: string; type: TaskType; dueAt: string;
   priority: Priority; status: TaskStatus; completedAt?: string; reminderAt?: string; studyStart?: string; studyEnd?: string;
+  reviewPlanId?: string; reviewOffsetDays?: number;
 };
 export type Settings = { studentName: string; notificationsEnabled: boolean; reminderLeadMinutes: number };
 export type StudyData = { subjects: Subject[]; tasks: Task[]; settings: Settings };
@@ -165,6 +167,62 @@ export const mergeStudyData = (data: Pick<StudyData, 'subjects' | 'tasks'>): Pro
   });
 });
 export function id(): string { return crypto.randomUUID(); }
+
+// Review plans stay device-local, like settings. Their generated tasks are real
+// study tasks, so existing calendar, subject and status filters need no copies.
+export async function loadReviewPlans(): Promise<ReviewPlan[]> {
+  const record = await transact<{ key: string; value: ReviewPlan[] } | undefined>('settings', 'readonly', s => s.get('review-plans'));
+  return record?.value ?? [];
+}
+async function mutateReviewPlan(draft: ReviewDraft | null, planId: string, editing = false): Promise<void> {
+  return withReminderLock(async () => {
+    const [data, plans] = await Promise.all([loadStudyData(), loadReviewPlans()]);
+    if (editing && !plans.some(plan => plan.id === planId)) {
+      throw new Error('لم تعد خطة المراجعة موجودة. حدّث الصفحة قبل المحاولة.');
+    }
+    if (draft && !plans.some(plan => plan.id === planId) && data.tasks.some(task => task.reviewPlanId === planId)) {
+      throw new Error('تعذّرت قراءة خطة المراجعة الحالية. حدّث الصفحة وحاول مجددًا.');
+    }
+    const next = planReviewChange(data.tasks, plans, draft, planId, data.subjects.map(subject => subject.id));
+    // Keep the existing cancellation guarantee if reminders were already enabled.
+    if (backgroundEnabled()) await syncBackgroundReminders({ ...data, tasks: next.tasks });
+    const db = await openDb();
+    return new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(['tasks', 'settings', 'subjects'], 'readwrite');
+      const tasks = tx.objectStore('tasks');
+      const settings = tx.objectStore('settings');
+      const currentTasks = tasks.getAll();
+      const currentPlans = settings.get('review-plans');
+      const currentSubjects = tx.objectStore('subjects').getAll();
+      let cause: unknown;
+      currentSubjects.onsuccess = () => {
+        try {
+          // Compare inside the write transaction: even two tabs without Web Locks
+          // cannot overwrite a newer plan or completion with an older preview.
+          const snapshot = (records: {id: string}[]) => JSON.stringify([...records].sort((a, b) => a.id.localeCompare(b.id)));
+          if (snapshot(currentTasks.result) !== snapshot(data.tasks) ||
+              JSON.stringify(currentPlans.result?.value ?? []) !== JSON.stringify(plans) ||
+              snapshot(currentSubjects.result) !== snapshot(data.subjects)) {
+            throw new Error('تغيّرت خطتك في نافذة أخرى. حدّث الصفحة ثم راجع المواعيد مجددًا.');
+          }
+          const retained = new Set(next.tasks.map(task => task.id));
+          for (const task of data.tasks) if (!retained.has(task.id)) tasks.delete(task.id);
+          for (const task of next.tasks) {
+            if (task.reviewPlanId === planId && !data.tasks.some(old => old === task)) tasks.put(task);
+          }
+          settings.put({ key: 'review-plans', value: next.plans });
+        } catch (error) { cause = error; tx.abort(); }
+      };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onabort = tx.onerror = () => {
+        db.close();
+        reject(cause ?? new Error('تعذّر حفظ المراجعات. لم تُحفظ تغييرات جزئية؛ حاول مرة أخرى.'));
+      };
+    });
+  });
+}
+export const saveReviewPlan = (draft: ReviewDraft, planId?: string) => mutateReviewPlan(draft, planId ?? id(), Boolean(planId));
+export const cancelReviewPlan = (planId: string) => mutateReviewPlan(null, planId);
 
 export type PlanRecords = Pick<StudyData, 'subjects' | 'tasks'>;
 export const emptyPlan = (): PlanRecords => ({ subjects: [], tasks: [] });

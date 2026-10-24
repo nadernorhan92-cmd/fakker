@@ -19,6 +19,7 @@ import { useDialogKeyboard } from '@/hooks/use-dialog-keyboard';
 import ReminderPanel from '@/components/ReminderPanel';
 import StudyArt from '@/components/StudyArt';
 import FocusTimer from '@/components/FocusTimer';
+import SpacedReviewPanel from '@/components/SpacedReviewPanel';
 import { getDueReminders, reminderKey, reminderTime } from '@/lib/reminders';
 
 import BackgroundReminders from '@/components/BackgroundReminders';
@@ -126,7 +127,7 @@ function Workspace() {
       <Switch>
         <Route path="/"><Dashboard data={data} tasks={tasks} subjectById={subjectById} onAdd={goNewTask} onComplete={transitionTask}/></Route>
         <Route path="/subjects"><SubjectsPage data={data} onAdd={()=>setSubjectModal('new')} onEdit={s=>setSubjectModal(s)} onDelete={s=>setDeleteModal({kind:'subject',item:s})} onShowTasks={id=>{setFilters({subject:id,status:'',priority:''});setQuery('');setLocation('/tasks');}}/></Route>
-        <Route path="/tasks"><TasksPage data={data} tasks={tasks} filters={filters} setFilters={setFilters} query={query} setQuery={setQuery} onAdd={goNewTask} onEdit={t=>setTaskModal(t)} onDelete={t=>setDeleteModal({kind:'task',item:t})} onComplete={transitionTask} onStatus={changeStatus}/></Route>
+        <Route path="/tasks"><SpacedReviewPanel data={data} onChanged={refresh}/><TasksPage data={data} tasks={tasks} filters={filters} setFilters={setFilters} query={query} setQuery={setQuery} onAdd={goNewTask} onEdit={t=>setTaskModal(t)} onDelete={t=>setDeleteModal({kind:'task',item:t})} onComplete={transitionTask} onStatus={changeStatus}/></Route>
         <Route path="/calendar"><CalendarPage data={data} tasks={tasks} selected={selectedDate} setSelected={setSelectedDate} cursor={monthCursor} setCursor={setMonthCursor} view={calendarView} setView={setCalendarView} onAdd={date=>goNewTask(date)} onEdit={t=>setTaskModal(t)} onComplete={transitionTask}/></Route>
         <Route path="/statistics"><StatisticsPage data={data} tasks={tasks}/></Route>
         <Route path="/settings"><SettingsPage settings={settingsDraft} onSave={persistSettings} onImported={refresh}/></Route>
@@ -181,7 +182,7 @@ function TaskRow({task,subject,onComplete,compact=false}:{task:Task;subject?:Sub
   const overdue=task.status!=='completed'&&new Date(task.dueAt).getTime()<Date.now();
   return <div className={`task-row ${overdue?'task-overdue':''} ${task.status==='completed'?'is-complete':''}`} data-testid={`row-task-${task.id}`}>
     <button className={`check-btn ${task.status==='completed'?'done':''}`} aria-label={task.status==='completed'?'إعادة فتح المهمة':'إنجاز المهمة'} data-testid={`button-complete-${task.id}`} onClick={event=>{event.stopPropagation();onComplete();}}>{task.status==='completed'&&<Check size={14}/>}</button>
-    <div className="task-info"><strong>{task.title}</strong><small>{subject&&<><span className="subject-dot" style={{background:subject.color}}/>{subject.name} · </>}{typeLabel[task.type]}{compact&&<> · {dueDate(task.dueAt)}</>}{overdue&&<span className="overdue-label"> · متأخرة</span>}</small></div>
+    <div className="task-info"><strong>{task.title}</strong><small>{subject&&<><span className="subject-dot" style={{background:subject.color}}/>{subject.name} · </>}{task.reviewPlanId?'مراجعة متباعدة':typeLabel[task.type]}{compact&&<> · {dueDate(task.dueAt)}</>}{overdue&&<span className="overdue-label"> · متأخرة</span>}</small></div>
     {!compact&&<span className="task-date">{fmtDate(task.dueAt,{day:'numeric',month:'short'})} · {dueDate(task.dueAt)}</span>}
     <span className={`pill ${task.status==='completed'?'completed':task.priority}`}>{task.status==='completed'?'مكتملة':priorityLabel[task.priority]}</span>
   </div>;
@@ -207,15 +208,17 @@ function SubjectsPage({data,onAdd,onEdit,onDelete,onShowTasks}:{data:StudyData;o
 }
 
 function TasksPage({data,tasks,filters,setFilters,query,setQuery,onAdd,onEdit,onDelete,onComplete,onStatus}:{data:StudyData;tasks:Task[];filters:{subject:string;status:string;priority:string};setFilters:(f:{subject:string;status:string;priority:string})=>void;query:string;setQuery:(q:string)=>void;onAdd:()=>void;onEdit:(t:Task)=>void;onDelete:(t:Task)=>void;onComplete:(t:Task)=>void;onStatus:(t:Task,s:TaskStatus)=>void}) {
-  const filtered=tasks.filter(t=>(!query||t.title.toLocaleLowerCase('ar').includes(query.toLocaleLowerCase('ar'))||t.description?.includes(query))&&(!filters.subject||t.subjectId===filters.subject)&&(!filters.status||t.status===filters.status)&&(!filters.priority||t.priority===filters.priority));
+  const [reviewOnly,setReviewOnly]=useState(false);
+  const filtered=tasks.filter(t=>(!reviewOnly||Boolean(t.reviewPlanId))&&(!query||t.title.toLocaleLowerCase('ar').includes(query.toLocaleLowerCase('ar'))||t.description?.includes(query))&&(!filters.subject||t.subjectId===filters.subject)&&(!filters.status||t.status===filters.status)&&(!filters.priority||t.priority===filters.priority));
   const set=(key:'subject'|'status'|'priority',value:string)=>setFilters({...filters,[key]:value});
-  const hasFilters=Boolean(query||filters.subject||filters.status||filters.priority);
+  const hasFilters=Boolean(query||filters.subject||filters.status||filters.priority||reviewOnly);
   return <div className="page"><Head eyebrow="كل ما يشغل بالك، صار مرتبًا" title="قائمة المهام" description="ابحث، صفِّ، ورتّب أولوياتك كما يناسبك." action={<button className="btn" data-testid="button-add-task-list" onClick={onAdd}><Plus size={17}/> أضف مهمة</button>}/>
     <div className="filters"><label style={{display:'flex',alignItems:'center',gap:8,flex:'1',minWidth:220}}><Search size={17} color="#9089a2"/><input className="field search" placeholder="ابحث عن مهمة..." aria-label="ابحث عن مهمة" data-testid="input-search-tasks" value={query} onChange={e=>setQuery(e.target.value)}/></label>
       <select className="select" aria-label="تصفية حسب المادة" data-testid="select-filter-subject" value={filters.subject} onChange={e=>set('subject',e.target.value)}><option value="">كل المواد</option>{data.subjects.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
       <select className="select" aria-label="تصفية حسب الحالة" data-testid="select-filter-status" value={filters.status} onChange={e=>set('status',e.target.value)}><option value="">كل الحالات</option>{Object.entries(statusLabel).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
       <select className="select" aria-label="تصفية حسب الأولوية" data-testid="select-filter-priority" value={filters.priority} onChange={e=>set('priority',e.target.value)}><option value="">كل الأولويات</option>{Object.entries(priorityLabel).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
-      {hasFilters&&<button className="btn soft small" data-testid="button-reset-filters" onClick={()=>{setQuery('');setFilters({subject:'',status:'',priority:''});}}><X size={14}/> مسح البحث والتصفية</button>}
+      <label className="quiet" style={{display:'flex',alignItems:'center',gap:8}}><input type="checkbox" data-testid="filter-reviews-only" checked={reviewOnly} onChange={e=>setReviewOnly(e.target.checked)}/> المراجعات المتباعدة فقط</label>
+      {hasFilters&&<button className="btn soft small" data-testid="button-reset-filters" onClick={()=>{setQuery('');setReviewOnly(false);setFilters({subject:'',status:'',priority:''});}}><X size={14}/> مسح البحث والتصفية</button>}
     </div>
     {filtered.length?<div className="card">
       <div className="section-head"><h3>المهام القادمة</h3><span className="quiet">{filtered.length} مهمة · الأقرب موعدًا أولًا</span></div>
@@ -315,7 +318,7 @@ function TaskDialog({initial,defaultDue,subjects,remindersEnabled,onClose,onSave
     if(Boolean(studyStart)!==Boolean(studyEnd)){setError('حدّد وقت بداية المذاكرة ووقت نهايتها معًا.');return;}
     if(studyStart&&studyEnd&&(!Number.isFinite(Date.parse(studyStart))||!Number.isFinite(Date.parse(studyEnd))||new Date(studyEnd)<=new Date(studyStart))){setError('وقت نهاية المذاكرة يجب أن يكون بعد بدايتها.');return;}
     setError('');setSaving(true);
-    try { await onSave({id:initial?.id||id(),title:title.trim(),description:description.trim()||undefined,subjectId:subjectId||undefined,type,dueAt:new Date(dueAt).toISOString(),priority,status,reminderAt:reminderAt?new Date(reminderAt).toISOString():undefined,studyStart:studyStart?new Date(studyStart).toISOString():undefined,studyEnd:studyEnd?new Date(studyEnd).toISOString():undefined}); }
+    try { await onSave({...initial,id:initial?.id||id(),title:title.trim(),description:description.trim()||undefined,subjectId:subjectId||undefined,type,dueAt:new Date(dueAt).toISOString(),priority,status,reminderAt:reminderAt?new Date(reminderAt).toISOString():undefined,studyStart:studyStart?new Date(studyStart).toISOString():undefined,studyEnd:studyEnd?new Date(studyEnd).toISOString():undefined}); }
     finally {setSaving(false);}
   };
   return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="task-dialog-title"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><h3 id="task-dialog-title">{initial?'تعديل المهمة':'مهمة جديدة'}</h3><button className="icon-btn" aria-label="إغلاق" data-testid="button-close-task-dialog" onClick={onClose}><X/></button></div>

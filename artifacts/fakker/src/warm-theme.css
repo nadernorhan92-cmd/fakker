@@ -202,3 +202,25 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index
   .mobile-nav .nav-link.active span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .hero-art { animation: none; } .subject-card:hover, .check-btn:hover { transform: none; } }
+
+/* spaced review panel */
+.review-panel { margin-bottom: 24px; }
+.review-lead { font-size: 13px; line-height: 1.9; margin: 0 0 14px; }
+.review-message { background: var(--sage); color: #44552b; border-radius: 16px; padding: 10px 14px; font-size: 13px; margin: 10px 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.review-message.failed { background: #fbd9cf; color: #a63414; }
+.review-skeleton { height: 72px; border-radius: 20px; background: linear-gradient(90deg, var(--ivory) 25%, var(--peach-2) 38%, var(--ivory) 60%); background-size: 300% 100%; animation: shimmer 1.4s infinite; }
+.review-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.review-item { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 20px; padding: 10px 14px; box-shadow: 0 2px 0 var(--line); }
+.review-item-info { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.review-item-info strong { color: var(--ink); font-size: 14px; overflow-wrap: anywhere; }
+.review-item-info small { color: var(--muted-ink); font-size: 12px; }
+.review-empty { padding: 22px; text-align: center; }
+.review-note { background: var(--lav); color: var(--ink-2); border-radius: 16px; padding: 10px 14px; font-size: 12px; line-height: 1.8; margin: 14px 0 0; }
+.review-preview { background: var(--butter); border-radius: 20px; padding: 14px 16px; margin-top: 14px; color: #5b4213; }
+.review-preview ol { margin: 10px 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.review-preview li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; }
+.review-offset { background: var(--ink); color: var(--ivory); border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+.review-panel .btn:disabled, .review-modal .btn:disabled, .modal .btn:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 600px) { .review-item { flex-wrap: wrap; } .review-item-info { flex-basis: 100%; } }
+@media (prefers-reduced-motion: reduce) { .review-skeleton { animation: none; } }
+.review-local { font-size: 12px; line-height: 1.8; color: var(--ink-2); background: var(--cream); border-radius: 14px; padding: 8px 12px; margin: 0 0 12px; }
