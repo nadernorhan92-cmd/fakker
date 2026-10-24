@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "فَكّر"
+description = "منظّم دراسة عربي للطلاب لمتابعة المواد الدراسية والواجبات والامتحانات، مع تقويم وتنبيهات وإحصاءات وحفظ للبيانات."
+version = "1.0.0"
+id = "artifacts/fakker"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19341
+
+[services.development]
+run = "pnpm --filter @workspace/fakker run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fakker", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fakker/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19341"
+BASE_PATH = "/"
