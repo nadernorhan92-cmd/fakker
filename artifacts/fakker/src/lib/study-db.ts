@@ -4,7 +4,7 @@ export type Priority = 'low' | 'medium' | 'high';
 export type Subject = { id: string; name: string; teacher?: string; color: string; description?: string };
 export type Task = {
   id: string; title: string; description?: string; subjectId?: string; type: TaskType; dueAt: string;
-  priority: Priority; status: TaskStatus; reminderAt?: string; studyStart?: string; studyEnd?: string;
+  priority: Priority; status: TaskStatus; completedAt?: string; reminderAt?: string; studyStart?: string; studyEnd?: string;
 };
 export type Settings = { studentName: string; notificationsEnabled: boolean; reminderLeadMinutes: number };
 export type StudyData = { subjects: Subject[]; tasks: Task[]; settings: Settings };
@@ -29,11 +29,13 @@ function openDb(): Promise<IDBDatabase> {
 function transact<T>(store: string, mode: IDBTransactionMode, work: (objectStore: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return openDb().then(db => new Promise<T>((resolve, reject) => {
     const tx = db.transaction(store, mode);
+    let result: T;
     const req = work(tx.objectStore(store));
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => { result = req.result; };
     req.onerror = () => reject(new Error('لم نتمكن من حفظ التغيير. حاول مرة أخرى.'));
-    tx.oncomplete = () => db.close();
+    tx.oncomplete = () => { db.close(); resolve(result); };
     tx.onerror = () => reject(new Error('حدث خطأ أثناء تحديث البيانات.'));
+    tx.onabort = () => { db.close(); reject(new Error('لم يكتمل حفظ البيانات. حاول مرة أخرى.')); };
   }));
 }
 const all = <T,>(store: string) => transact<T[]>(store, 'readonly', s => s.getAll());
@@ -47,11 +49,42 @@ export async function loadStudyData(): Promise<StudyData> {
   return { subjects, tasks, settings: settingsRecord?.value ?? DEFAULT_SETTINGS };
 }
 export const saveSubject = (subject: Subject) => put('subjects', subject);
-export const deleteSubject = (id: string) => remove('subjects', id);
-export const saveTask = (task: Task) => put('tasks', task);
+export async function deleteSubject(id: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['subjects', 'tasks'], 'readwrite');
+    const tasks = tx.objectStore('tasks');
+    const request = tasks.getAll();
+    request.onsuccess = () => {
+      for (const task of request.result as Task[]) {
+        if (task.subjectId === id) tasks.put({ ...task, subjectId: undefined });
+      }
+      tx.objectStore('subjects').delete(id);
+    };
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onabort = () => { db.close(); reject(new Error('تعذّر حذف المادة، ولم تتغيّر مهامها.')); };
+    tx.onerror = () => reject(new Error('تعذّر تحديث المادة والمهام المرتبطة بها.'));
+  });
+}
+export async function saveTask(task: Task) {
+  const previous = task.status === 'completed'
+    ? await transact<Task | undefined>('tasks', 'readonly', s => s.get(task.id))
+    : undefined;
+  const completedAt = task.status === 'completed'
+    ? task.completedAt ?? (previous?.status === 'completed' ? previous.completedAt : undefined) ?? new Date().toISOString()
+    : undefined;
+  return put('tasks', { ...task, completedAt });
+}
 export const deleteTask = (id: string) => remove('tasks', id);
 export const saveSettings = (settings: Settings) => put('settings', { key: 'main', value: settings });
 export async function clearStudyData(): Promise<void> {
-  await Promise.all(['subjects','tasks','settings'].map(store => transact<undefined>(store, 'readwrite', s => s.clear())));
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['subjects', 'tasks', 'settings'], 'readwrite');
+    for (const store of ['subjects', 'tasks', 'settings']) tx.objectStore(store).clear();
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onabort = () => { db.close(); reject(new Error('تعذّر حذف البيانات، ولم تُحفظ تغييرات جزئية.')); };
+    tx.onerror = () => reject(new Error('حدث خطأ أثناء حذف البيانات.'));
+  });
 }
 export function id(): string { return crypto.randomUUID(); }
