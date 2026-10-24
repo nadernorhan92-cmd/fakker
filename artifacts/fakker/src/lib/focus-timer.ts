@@ -13,10 +13,27 @@ export type TimerAction =
   | { type: 'configure'; focusMinutes: number; breakMinutes: number; taskId: string | null }
   | { type: 'start' | 'pause' | 'reset' | 'next' | 'reconcile' };
 
+export type FocusSession = {
+  id: string;
+  taskId: string | null;
+  durationMs: number;
+  completedAt: number;
+};
+
 export const initialFocusTimer = (): FocusTimerState => ({
   version: 1, phase: 'focus', status: 'idle', focusMinutes: 25,
   breakMinutes: 5, taskId: null, remainingMs: 25 * 60_000, endsAt: null,
 });
+
+export function completedFocusSession(state: FocusTimerState, now: number, sessionId: string): FocusSession | null {
+  if (state.phase !== 'focus' || state.status !== 'running' || state.endsAt === null || state.endsAt > now) return null;
+  return {
+    id: sessionId,
+    taskId: state.taskId,
+    durationMs: state.focusMinutes * 60_000,
+    completedAt: state.endsAt,
+  };
+}
 
 export function validateFocusTimer(value: unknown): FocusTimerState {
   const s = value as FocusTimerState | null;

@@ -21,6 +21,7 @@ import StudyArt from '@/components/StudyArt';
 import FocusTimer from '@/components/FocusTimer';
 import SpacedReviewPanel from '@/components/SpacedReviewPanel';
 import { getDueReminders, reminderKey, reminderTime } from '@/lib/reminders';
+import { useFocusSessions } from '@/lib/use-focus-sessions';
 
 import BackgroundReminders from '@/components/BackgroundReminders';
 import { syncBackgroundReminders, withReminderLock } from '@/lib/background-reminders';
@@ -261,18 +262,58 @@ function CalendarPage({data,tasks,selected,setSelected,cursor,setCursor,view,set
 }
 
 function StatisticsPage({data,tasks}:{data:StudyData;tasks:Task[]}) {
+  const { sessions, loading: sessionsLoading, error: sessionsError } = useFocusSessions();
   const complete=tasks.filter(t=>t.status==='completed').length;
   const overdue=tasks.filter(t=>t.status!=='completed'&&new Date(t.dueAt)<new Date()).length;
   const pct=tasks.length?Math.round(complete/tasks.length*100):0;
   const week=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const key=todayKey(d);return {day:new Intl.DateTimeFormat('ar',{weekday:'short'}).format(d),count:tasks.filter(t=>t.status==='completed'&&t.completedAt&&todayKey(new Date(t.completedAt))===key).length};});
   const max=Math.max(1,...week.map(d=>d.count));
   const top=data.subjects.map(s=>({subject:s,count:tasks.filter(t=>t.subjectId===s.id&&t.status==='completed').length})).sort((a,b)=>b.count-a.count).slice(0,5);
-  const studyHours=tasks.reduce((sum,t)=>sum+(t.studyStart&&t.studyEnd&&t.status==='completed'?Math.max(0,(new Date(t.studyEnd).getTime()-new Date(t.studyStart).getTime())/3600000):0),0);
+  const totalFocusMs=sessions.reduce((sum,session)=>sum+session.durationMs,0);
+  const focusHours=totalFocusMs/3600000;
+  const focusNumber=new Intl.NumberFormat('ar',{maximumFractionDigits:1});
+  const sevenDays=Array.from({length:7},(_,i)=>{
+    const date=new Date(); date.setDate(date.getDate()-6+i);
+    const key=todayKey(date);
+    const entries=sessions.filter(session=>todayKey(new Date(session.completedAt))===key);
+    return {key,label:new Intl.DateTimeFormat('ar',{weekday:'short',day:'numeric'}).format(date),count:entries.length,totalMs:entries.reduce((sum,session)=>sum+session.durationMs,0)};
+  });
+  const taskTotals=new Map<string,{taskId:string|null;count:number;totalMs:number}>();
+  for(const session of sessions){
+    const key=session.taskId??'__unassigned__';
+    const total=taskTotals.get(key)??{taskId:session.taskId,count:0,totalMs:0};
+    total.count++; total.totalMs+=session.durationMs; taskTotals.set(key,total);
+  }
+  const byTask=[...taskTotals.values()].sort((a,b)=>b.totalMs-a.totalMs);
+  const recentSessions=[...sessions].sort((a,b)=>b.completedAt-a.completedAt);
+  const durationLabel=(ms:number)=>{
+    const minutes=Math.round(ms/60000);
+    return `${focusNumber.format(Math.floor(minutes/60))} س ${focusNumber.format(minutes%60)} د`;
+  };
   return <div className="page"><Head eyebrow="التقدّم لا يُقاس بالكمال" title="إحصاءاتي" description="نظرة هادئة على ما أنجزته والوقت الذي خصصته."/>
-    <div className="grid stats-grid"><Stat title="مهام مكتملة" value={complete} sub="إنجازات تستحق التقدير" icon={<CheckCheck size={17}/>}/><Stat title="نسبة الإكمال" value={`${pct}٪`} sub={`من ${tasks.length} مهام مسجلة`} icon={<ChartNoAxesCombined size={17}/>}/><Stat title="مهام متأخرة" value={overdue} sub={overdue?'رتّب موعدها من قائمة المهام':'أنت على المسار'} icon={<AlarmClock size={17}/>}/><Stat title="ساعات المذاكرة" value={`${new Intl.NumberFormat('ar',{maximumFractionDigits:1}).format(studyHours)} س`} sub="وقت جلساتك المكتملة" icon={<Clock3 size={17}/>}/></div>
+    <div className="grid stats-grid"><Stat title="مهام مكتملة" value={complete} sub="إنجازات تستحق التقدير" icon={<CheckCheck size={17}/>}/><Stat title="نسبة الإكمال" value={`${pct}٪`} sub={`من ${tasks.length} مهام مسجلة`} icon={<ChartNoAxesCombined size={17}/>}/><Stat title="مهام متأخرة" value={overdue} sub={overdue?'رتّب موعدها من قائمة المهام':'أنت على المسار'} icon={<AlarmClock size={17}/>}/><Stat title="وقت التركيز المسجّل" value={sessionsLoading?'…':sessionsError?'—':`${focusNumber.format(focusHours)} س`} sub={sessionsLoading?'جارٍ تحميل السجل':sessionsError?'تعذّر تحميل سجل الجلسات':`${sessions.length} جلسة تركيز مكتملة`} icon={<Clock3 size={17}/>}/></div>
+    {sessionsError&&<p className="ft-error" role="alert" data-testid="text-focus-sessions-error">{sessionsError}</p>}
     <div className="grid dashboard-grid"><section className="card"><div className="section-head"><h3>إنجازات آخر سبعة أيام</h3><span className="quiet">حسب تاريخ الإكمال</span></div><div className="chart" role="img" aria-label="مخطط المهام المكتملة خلال الأسبوع"><div className="chart-bars">{week.map((d,i)=><div className="chart-col" key={`${d.day}-${i}`}><span className="chart-value">{d.count||''}</span><div className="bar-stack"><div className="bar" style={{height:`${Math.max(3,(d.count/max)*100)}%`}}/></div><span className="chart-label">{d.day}</span></div>)}</div></div></section>
       <section className="card"><div className="section-head"><h3>موادك النشطة</h3><BookOpen size={17} color="#8374b8"/></div>{top.length&&top.some(x=>x.count)?<div className="task-list">{top.filter(x=>x.count>0).map(({subject,count})=><div className="task-row" key={subject.id}><span className="subject-dot" style={{background:subject.color,width:12,height:12}}/><div className="task-info"><strong>{subject.name}</strong><small>{count} مهام مكتملة</small></div><span className="pill completed">{count}</span></div>)}</div>:<Empty title="كل إنجاز يبدأ بخطوة" description="أكمل مهمة مرتبطة بمادة لتظهر هنا."/>}</section>
     </div>
+    <div className="grid dashboard-grid" style={{marginTop:19}}>
+      <section className="card"><div className="section-head"><h3>وقت التركيز حسب اليوم</h3><span className="quiet">آخر سبعة أيام</span></div>
+        {sessionsError?<p className="quiet">تعذّر عرض الملخص اليومي.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:sessions.length?<div className="task-list">{sevenDays.map(day=><div className="task-row" key={day.key}><div className="task-info"><strong>{day.label}</strong><small>{day.count} جلسة مكتملة</small></div><span className="pill">{durationLabel(day.totalMs)}</span></div>)}</div>:<Empty title="لا توجد جلسات مكتملة بعد" description="ستظهر هنا مدة التركيز بعد إكمال جلسة المؤقّت."/>}
+      </section>
+      <section className="card"><div className="section-head"><h3>وقت التركيز حسب المهمة</h3><span className="quiet">{byTask.length} مهام</span></div>
+        {sessionsError?<p className="quiet">تعذّر عرض الملخص حسب المهمة.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:byTask.length?<div className="task-list">{byTask.map(({taskId,count,totalMs})=>{
+          const task=tasks.find(item=>item.id===taskId);
+          return <div className="task-row" key={taskId??'__unassigned__'}><div className="task-info"><strong>{taskId===null?'دون مهمة محددة':task?.title??'مهمة محذوفة'}</strong><small>{count} جلسة مكتملة</small></div><span className="pill">{durationLabel(totalMs)}</span></div>;
+        })}</div>:<Empty title="لا توجد بيانات لعرضها" description="اربط جلسة بمهمة اختياريًا لتظهر ضمن هذا الملخص."/>}
+      </section>
+    </div>
+    <section className="card" style={{marginTop:19}}><div className="section-head"><h3>سجل جلسات التركيز</h3><span className="quiet">محفوظ محليًا لهذا الحساب أو مساحة الضيف فقط</span></div>
+      {sessionsError?<p className="quiet">تعذّر قراءة سجل الجلسات.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:recentSessions.length?<div className="task-list">{recentSessions.map(session=>{
+        const task=session.taskId?tasks.find(item=>item.id===session.taskId):undefined;
+        const completedAt=new Date(session.completedAt);
+        return <div className="task-row" key={session.id} data-testid={`row-focus-session-${session.id}`}><Clock3 size={16}/><div className="task-info"><strong>{session.taskId===null?'دون مهمة محددة':task?.title??'مهمة محذوفة'}</strong><small>{fmtDate(completedAt.toISOString(),{weekday:'short',day:'numeric',month:'short'})} · {completedAt.toLocaleTimeString('ar',{hour:'numeric',minute:'2-digit'})}</small></div><span className="pill completed">{durationLabel(session.durationMs)}</span></div>;
+      })}</div>:<Empty title="سجلّك سيبدأ مع أول جلسة" description="تُسجّل جلسة التركيز المكتملة فقط، ولا يتغير وضع المهمة عند انتهائها."/>}
+    </section>
   </div>;
 }
 

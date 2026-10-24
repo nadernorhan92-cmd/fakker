@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../src/lib/focus-timer.ts', import.meta.url
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
 });
-const { initialFocusTimer, validateFocusTimer, remainingTime, transitionTimer } =
+const { initialFocusTimer, validateFocusTimer, remainingTime, transitionTimer, completedFocusSession } =
   await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const now = 1_800_000_000_000;
 const act = (s, type, at = now) => transitionTimer(s, { type }, at);
@@ -65,6 +65,24 @@ test('completion persists until an explicit next action, then break and focus al
   assert.equal(focus.phase, 'focus');
   assert.equal(focus.status, 'running');
   assert.equal(focus.remainingMs, 1_500_000);
+});
+
+test('only a fully elapsed focus phase creates a session with its optional task and completion time', () => {
+  const configured = transitionTimer(initialFocusTimer(), {
+    type: 'configure', focusMinutes: 40, breakMinutes: 10, taskId: 'task-1',
+  }, now);
+  const running = act(configured, 'start');
+  assert.equal(completedFocusSession(running, running.endsAt - 1, 'session-1'), null);
+  assert.deepEqual(completedFocusSession(running, running.endsAt, 'session-1'), {
+    id: 'session-1', taskId: 'task-1', durationMs: 40 * 60_000, completedAt: running.endsAt,
+  });
+  assert.equal(completedFocusSession(act(initialFocusTimer(), 'start'), now, 'session-2'), null);
+  const breakRunning = transitionTimer(
+    transitionTimer(initialFocusTimer(), { type: 'start' }, now),
+    { type: 'next' },
+    now + 1,
+  );
+  assert.equal(completedFocusSession(breakRunning, now + 1, 'session-3'), null);
 });
 
 test('active configuration stays locked and reset keeps preferences and optional link', () => {

@@ -1,5 +1,5 @@
 import { backgroundEnabled, disableBackgroundReminders, syncBackgroundReminders, withReminderLock } from './background-reminders';
-import { initialFocusTimer, transitionTimer, validateFocusTimer, type FocusTimerState, type TimerAction } from './focus-timer';
+import { completedFocusSession, initialFocusTimer, transitionTimer, validateFocusTimer, type FocusSession, type FocusTimerState, type TimerAction } from './focus-timer';
 import { planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';
 
 export type TaskType = 'homework' | 'study' | 'project' | 'exam';
@@ -55,27 +55,70 @@ const put = <T,>(store: string, value: T) => transact<IDBValidKey>(store, 'readw
 const remove = (store: string, id: string) => transact<undefined>(store, 'readwrite', s => s.delete(id));
 // A separate settings record keeps the timer local to this account without
 // changing the plan/backup/cloud shape or upgrading the existing database.
-export async function updateFocusTimer(action: TimerAction): Promise<FocusTimerState> {
+export async function updateFocusTimer(action: TimerAction): Promise<{ state: FocusTimerState; sessionRecorded: boolean }> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction('settings', 'readwrite');
     const store = tx.objectStore('settings');
-    const request = store.get('focus-timer');
+    const timerRequest = store.get('focus-timer');
     let result: FocusTimerState;
+    let sessionRecorded = false;
     let cause: unknown;
-    request.onsuccess = () => {
+    timerRequest.onsuccess = () => {
       try {
-        const previous = request.result ? validateFocusTimer(request.result.value) : initialFocusTimer();
-        result = transitionTimer(previous, action, Date.now());
-        if (!request.result || result !== previous) store.put({ key: 'focus-timer', value: result });
+        const timerRecord = timerRequest.result as { key: string; value: unknown } | undefined;
+        const previous = timerRecord ? validateFocusTimer(timerRecord.value) : initialFocusTimer();
+        const now = Date.now();
+        result = transitionTimer(previous, action, now);
+        const isFocusComplete = previous.phase === 'focus' && previous.status === 'running'
+          && previous.endsAt !== null && previous.endsAt <= now;
+        const completed = isFocusComplete
+          ? completedFocusSession(previous, now, crypto.randomUUID())
+          : null;
+        if (completed) {
+          const sessionsRequest = store.get('focus-sessions');
+          sessionsRequest.onsuccess = () => {
+            try {
+              const sessions = validateFocusSessions(sessionsRequest.result?.value);
+              if (!sessions.some(session => session.id === completed.id)) {
+                store.put({ key: 'focus-sessions', value: [...sessions, completed] });
+                sessionRecorded = true;
+              }
+              if (!timerRecord || result !== previous) store.put({ key: 'focus-timer', value: result });
+            } catch (error) { cause = error; tx.abort(); }
+          };
+        } else if (!timerRecord || result !== previous) {
+          store.put({ key: 'focus-timer', value: result });
+        }
       } catch (error) { cause = error; tx.abort(); }
     };
-    tx.oncomplete = () => { db.close(); resolve(result); };
+    tx.oncomplete = () => { db.close(); resolve({ state: result, sessionRecorded }); };
     tx.onabort = tx.onerror = () => {
       db.close();
       reject(cause ?? new Error('تعذّر حفظ المؤقّت. أعد المحاولة؛ لم تتغير بيانات خطتك.'));
     };
   });
+}
+
+function validateFocusSessions(value: unknown): FocusSession[] {
+  if (value === undefined) return [];
+  const isFocusSession = (session: unknown): session is FocusSession => {
+    if (!session || typeof session !== 'object') return false;
+    const candidate = session as Partial<FocusSession>;
+    return typeof candidate.id === 'string' && candidate.id.length > 0
+      && (candidate.taskId === null || typeof candidate.taskId === 'string')
+      && typeof candidate.durationMs === 'number' && Number.isFinite(candidate.durationMs) && candidate.durationMs > 0
+      && typeof candidate.completedAt === 'number' && Number.isFinite(candidate.completedAt) && candidate.completedAt > 0;
+  };
+  if (!Array.isArray(value) || !value.every(isFocusSession)) {
+    throw new Error('تعذّرت قراءة سجل جلسات التركيز المحفوظ. لم تتغير بيانات خطتك.');
+  }
+  return value as FocusSession[];
+}
+
+export async function loadFocusSessions(): Promise<FocusSession[]> {
+  const record = await transact<{ key: string; value: unknown } | undefined>('settings', 'readonly', store => store.get('focus-sessions'));
+  return validateFocusSessions(record?.value);
 }
 export async function loadStudyData(): Promise<StudyData> {
   const [subjects, tasks, settingsRecord] = await Promise.all([

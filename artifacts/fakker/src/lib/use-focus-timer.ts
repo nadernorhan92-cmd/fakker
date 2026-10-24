@@ -16,9 +16,9 @@ export function useFocusTimer() {
     const interactive = action.type !== 'reconcile';
     if (interactive) setBusy(true);
     try {
-      const next = await updateFocusTimer(action);
-      if (mounted.current) { setState(next); setNow(Date.now()); setError(null); }
-      if (action.type !== 'reconcile') channel.current?.postMessage('changed');
+      const result = await updateFocusTimer(action);
+      if (mounted.current) { setState(result.state); setNow(Date.now()); setError(null); }
+      if (action.type !== 'reconcile' || result.sessionRecorded) channel.current?.postMessage('changed');
       return true;
     } catch (e) {
       if (mounted.current) setError(e instanceof Error ? e.message : 'تعذّر حفظ المؤقّت.');
