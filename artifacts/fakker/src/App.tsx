@@ -11,6 +11,10 @@ import {
 } from '@/lib/study-db';
 import NotFound from '@/pages/not-found';
 import BackupPanel from '@/components/BackupPanel';
+import CloudPanel from '@/components/CloudPanel';
+import AuthProvider from '@/components/AuthProvider';
+import AccountWorkspace from '@/components/AccountWorkspace';
+import { SignIn, SignUp } from '@clerk/react';
 import { useDialogKeyboard } from '@/hooks/use-dialog-keyboard';
 import ReminderPanel from '@/components/ReminderPanel';
 import StudyArt from '@/components/StudyArt';
@@ -137,7 +141,14 @@ function Workspace() {
     {toast && <div className={`toast ${toast.error?'error':''}`} role="status" data-testid="status-toast">{toast.text}</div>}
   </div>;
 }
-function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/,'')}><Workspace/></WouterRouter>; }
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
+function App() {
+  return <WouterRouter base={basePath}><AuthProvider><Switch>
+    <Route path="/sign-in/*?"><main className="auth-page" dir="rtl"><Link href="/settings">العودة إلى فَكّر دون رفع بيانات</Link><SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`}/></main></Route>
+    <Route path="/sign-up/*?"><main className="auth-page" dir="rtl"><Link href="/settings">العودة إلى فَكّر دون رفع بيانات</Link><SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`}/></main></Route>
+    <Route><AccountWorkspace><Workspace/></AccountWorkspace></Route>
+  </Switch></AuthProvider></WouterRouter>;
+}
 function NavItem({href,label,icon:Icon,active}:{href:string;label:string;icon:typeof LayoutDashboard;active:boolean}) { return <Link href={href} className={`nav-link ${active?'active':''}`} data-testid={`link-nav-${href==='/'?'home':href.slice(1)}`} aria-label={label} title={label} aria-current={active?'page':undefined}><Icon size={19} aria-hidden="true"/><span>{label}</span></Link>; }
 function Head({eyebrow,title,description,action}:{eyebrow:string;title:string;description?:string;action?:ReactNode}){return <div className="page-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{description&&<p>{description}</p>}</div>{action}</div>}
 function Empty({title,description,action}:{title:string;description:string;action?:React.ReactNode}) {return <div className="empty"><div className="empty-mark"><FolderOpen size={20}/></div><strong>{title}</strong><p>{description}</p>{action&&<div style={{marginTop:15}}>{action}</div>}</div>}
@@ -265,15 +276,16 @@ function SettingsPage({settings,onSave,onImported}:{settings:Settings;onSave:(s:
   const [lead,setLead]=useState(String(settings.reminderLeadMinutes));
   useEffect(()=>{setName(settings.studentName);setLead(String(settings.reminderLeadMinutes));},[settings]);
   return <div className="page"><Head eyebrow="مساحتك، بطريقتك" title="الإعدادات" description="تفضيلاتك محفوظة في هذا المتصفح وعلى هذا الجهاز."/>
+    <CloudPanel onChanged={onImported}/>
     <section className="card setting-card">
       <div className="setting-row"><div className="setting-copy"><strong>اسمك في فَكّر</strong><small>يظهر الاسم في ترحيبك ومساحتك الشخصية.</small></div><div style={{display:'flex',gap:8}}><input className="field" aria-label="اسم الطالب" data-testid="input-student-name" maxLength={60} value={name} onChange={e=>setName(e.target.value)} placeholder="اكتب اسمك"/><button className="btn small" data-testid="button-save-name" onClick={()=>void onSave({...settings,studentName:name.trim(),reminderLeadMinutes:Number(lead)||30})}>حفظ</button></div></div>
       <div className="setting-row"><div className="setting-copy"><strong>تذكيرات داخل التطبيق</strong><small>اعرض تنبيهًا عند حلول موعد التذكير أثناء فتح فَكّر، دون الحاجة إلى إذن المتصفح. إيقاف هذا الخيار يوقف أيضًا جدولة إشعارات الخلفية دون إلغاء الاشتراك.</small></div><button className={`switch ${settings.notificationsEnabled?'on':''}`} role="switch" aria-checked={settings.notificationsEnabled} aria-label="تفعيل التذكيرات" data-testid="switch-notifications" onClick={()=>void onSave({...settings,notificationsEnabled:!settings.notificationsEnabled})}><span/></button></div>
       <BackgroundReminders onUpdated={onImported}/>
       <div className="setting-row"><div className="setting-copy"><strong>مهلة التذكير</strong><small>المدة التي تسبق الموعد. فعّل التذكيرات ثم اختر ما يناسبك.</small></div><select className="select" aria-label="مهلة التذكير بالدقائق" data-testid="select-reminder-lead" value={lead} onChange={e=>{setLead(e.target.value);void onSave({...settings,reminderLeadMinutes:Number(e.target.value)});}}><option value="10">١٠ دقائق</option><option value="30">٣٠ دقيقة</option><option value="60">ساعة</option><option value="1440">يوم واحد</option></select></div>
-      <div className="setting-row"><div className="setting-copy"><strong>خصوصية بياناتك</strong><small>خطتك وموادك وملاحظاتك محفوظة محليًا في IndexedDB، دون حساب أو مزامنة بين الأجهزة. عند تفعيل الخلفية فقط تُحفظ عناوين المهام ومواعيدها واشتراك المتصفح على الخادم؛ تُحذف عند الإلغاء، وتُنظّف المواعيد المنتهية خلال يوم. حذف بيانات الموقع مباشرة لا يلغي الاشتراك على الخادم؛ ألغِه من هنا أولًا.</small></div><span className="pill completed">تحكّم ببياناتك</span></div>
+      <div className="setting-row"><div className="setting-copy"><strong>خصوصية بياناتك</strong><small>خطتك محفوظة محليًا في IndexedDB. تسجيل الدخول اختياري، ورفع المواد والمهام لا يحدث إلا بموافقتك وضغط «مزامنة الآن». لكل حساب مساحة منفصلة. تذكيرات الخلفية خدمة مستقلة: عند تفعيلها تُحفظ عناوين المهام ومواعيدها واشتراك المتصفح على الخادم؛ تُحذف عند إلغائها، وتُنظّف المواعيد المنتهية خلال يوم. حذف بيانات الموقع مباشرة لا يلغي الاشتراك؛ ألغِه من هنا أولًا.</small></div><span className="pill completed">تحكّم ببياناتك</span></div>
       <div className="setting-row"><div className="setting-copy"><strong>تحديث التذكيرات وإلغاؤها</strong><small>عند تفعيل الخلفية، يلزم الإنترنت لتعديل مهمة أو حذفها أو إكمالها أو تغيير مهلة تذكيرها، كي نؤكّد تحديث الموعد على الخادم قبل الحفظ. إلغاء الخلفية لا يوقف التذكيرات داخل التطبيق.</small></div><span className="pill">معلومة</span></div>
       <BackupPanel onImported={onImported}/>
-      <div className="setting-row"><div className="setting-copy"><strong>حذف بيانات هذا الجهاز</strong><small>حذف نهائي لكل المواد والمهام والتفضيلات المحلية.</small></div><button className="btn danger small" data-testid="button-clear-data" onClick={async()=>{if(window.confirm('هل تريد حذف جميع بيانات فَكّر من هذا الجهاز؟ لا يمكن التراجع عن ذلك.')){try{await clearStudyData();await onSave({studentName:'',notificationsEnabled:false,reminderLeadMinutes:30});window.location.reload();}catch{window.alert('تعذّر حذف البيانات.');}}}}><Trash2 size={14}/> حذف بياناتي</button></div>
+      <div className="setting-row"><div className="setting-copy"><strong>حذف النسخة المحلية لهذه المساحة</strong><small>يحذف المواد والمهام والتفضيلات من مساحة الحساب الحالي أو وضع «دون حساب» فقط. لا يحذف النسخة السحابية أو بيانات الحسابات الأخرى؛ يمكنك استعادة السحابة لاحقًا.</small></div><button className="btn danger small" data-testid="button-clear-data" onClick={async()=>{if(window.confirm('هل تريد حذف النسخة المحلية لهذه المساحة؟ لن تُحذف السحابة أو مساحات الحسابات الأخرى. لا يمكن التراجع عن حذف بيانات محلية لم تزامنها.')){try{await clearStudyData();await onSave({studentName:'',notificationsEnabled:false,reminderLeadMinutes:30});window.location.reload();}catch{window.alert('تعذّر حذف البيانات.');}}}}><Trash2 size={14}/> حذف النسخة المحلية</button></div>
     </section>
   </div>;
 }

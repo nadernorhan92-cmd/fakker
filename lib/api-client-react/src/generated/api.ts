@@ -20,6 +20,8 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  CloudPlan,
+  CloudPlanInput,
   HealthStatus,
   PushConfig,
   PushMessage,
@@ -54,6 +56,159 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
   }
   return result;
 };
+
+export const getGetStudyPlanUrl = () => {
+
+
+
+
+  return `/api/study-plan`
+}
+
+export const getStudyPlan = async ( options?: Parameters<typeof customFetch>[1]): Promise<CloudPlan> => {
+
+  return customFetch<CloudPlan>(getGetStudyPlanUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStudyPlanQueryKey = () => {
+    return [
+    `/api/study-plan`
+    ] as const;
+    }
+
+
+export const getGetStudyPlanQueryOptions = <TData = Awaited<ReturnType<typeof getStudyPlan>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudyPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStudyPlanQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStudyPlan>>> = ({ signal }) => getStudyPlan({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStudyPlan>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStudyPlanQueryResult = NonNullable<Awaited<ReturnType<typeof getStudyPlan>>>
+export type GetStudyPlanQueryError = ErrorType<void>
+
+
+
+export function useGetStudyPlan<TData = Awaited<ReturnType<typeof getStudyPlan>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getStudyPlan>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStudyPlanQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPutStudyPlanUrl = () => {
+
+
+
+
+  return `/api/study-plan`
+}
+
+export const putStudyPlan = async (cloudPlanInput: CloudPlanInput, options?: Parameters<typeof customFetch>[1]): Promise<CloudPlan> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<CloudPlan>(getPutStudyPlanUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(cloudPlanInput)
+  }
+);}
+
+
+
+
+
+export const getPutStudyPlanMutationKey = () => ['putStudyPlan'] as const;
+
+export const getPutStudyPlanMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putStudyPlan>>, TError,PutStudyPlanMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof putStudyPlan>>, TError,PutStudyPlanMutationVariables, TContext> => {
+
+const mutationKey = getPutStudyPlanMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof putStudyPlan>>, PutStudyPlanMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  putStudyPlan(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PutStudyPlanMutationResult = NonNullable<Awaited<ReturnType<typeof putStudyPlan>>>
+    export type PutStudyPlanMutationBody = BodyType<CloudPlanInput>
+    export type PutStudyPlanMutationError = ErrorType<void>
+    export type PutStudyPlanMutationVariables = {data: BodyType<CloudPlanInput>}
+
+    export const usePutStudyPlan = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof putStudyPlan>>, TError,PutStudyPlanMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof putStudyPlan>>,
+        TError,
+        PutStudyPlanMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPutStudyPlanMutationOptions(options));
+    }
 
 export const getPushConfigUrl = () => {
 

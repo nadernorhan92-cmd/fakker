@@ -1,3 +1,15 @@
+/* Optional account controls follow the existing warm, RTL settings layout. */
+.auth-page { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; padding: 24px; background: #f8f4ed; }
+.cloud-panel { margin-bottom: 24px; padding: 24px; }
+.cloud-panel h3 { margin: 0 0 12px; }
+.cloud-panel p { font-size: 13px; line-height: 1.9; }
+.cloud-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.9; margin: 18px 0 12px; }
+.cloud-consent input { margin-top: 7px; accent-color: #a75e43; }
+.cloud-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.cloud-conflict { border: 1px solid #bd8d4c; border-radius: 12px; margin-top: 18px; padding: 16px; font-size: 13px; }
+.cloud-versions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cloud-versions pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 12px; background: #f8f4ed; padding: 12px; border-radius: 8px; }
+@media (max-width: 600px) { .cloud-versions { grid-template-columns: 1fr; } .cloud-panel { padding: 18px; } }
 /* فَكّر — "دفتر الخوخ": peach phone canvas, ivory rounded cards, ink pill nav, tangerine accents. */
 :root {
   --peach: #fbe4d8; --peach-2: #f8d5c4; --ivory: #fffaf3; --cream: #fff3e4;

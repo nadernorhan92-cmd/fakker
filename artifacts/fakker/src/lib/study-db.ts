@@ -10,7 +10,14 @@ export type Task = {
 };
 export type Settings = { studentName: string; notificationsEnabled: boolean; reminderLeadMinutes: number };
 export type StudyData = { subjects: Subject[]; tasks: Task[]; settings: Settings };
-const DB_NAME = 'fakker-study-planner';
+let DB_NAME = 'fakker-study-planner';
+let studyAccount: string | null = null;
+export const getStudyAccount = () => studyAccount;
+// Set once, before mounting the workspace. Account changes reload the document.
+export function setStudyAccount(userId: string | null) {
+  studyAccount = userId;
+  DB_NAME = userId ? `fakker-study-planner-account-${userId}` : 'fakker-study-planner';
+}
 const DB_VERSION = 1;
 const DEFAULT_SETTINGS: Settings = { studentName: '', notificationsEnabled: false, reminderLeadMinutes: 30 };
 
@@ -50,8 +57,8 @@ export async function loadStudyData(): Promise<StudyData> {
   ]);
   return { subjects, tasks, settings: settingsRecord?.value ?? DEFAULT_SETTINGS };
 }
-export const saveSubject = (subject: Subject) => put('subjects', subject);
-export async function deleteSubject(id: string): Promise<void> {
+export const saveSubject = (subject: Subject) => withReminderLock(() => put('subjects', subject));
+export const deleteSubject = (id: string): Promise<void> => withReminderLock(async () => {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(['subjects', 'tasks'], 'readwrite');
@@ -67,7 +74,7 @@ export async function deleteSubject(id: string): Promise<void> {
     tx.onabort = () => { db.close(); reject(new Error('تعذّر حذف المادة، ولم تتغيّر مهامها.')); };
     tx.onerror = () => reject(new Error('تعذّر تحديث المادة والمهام المرتبطة بها.'));
   });
-}
+});
 export const saveTask = (task: Task) => withReminderLock(async () => {
   if (backgroundEnabled()) {
     const data = await loadStudyData();
@@ -133,3 +140,45 @@ export const mergeStudyData = (data: Pick<StudyData, 'subjects' | 'tasks'>): Pro
   });
 });
 export function id(): string { return crypto.randomUUID(); }
+
+export type PlanRecords = Pick<StudyData, 'subjects' | 'tasks'>;
+export const emptyPlan = (): PlanRecords => ({ subjects: [], tasks: [] });
+export async function loadCloudBase(): Promise<PlanRecords> {
+  const record = await transact<{ key: string; value: PlanRecords } | undefined>('settings', 'readonly', s => s.get('cloud-base'));
+  return record?.value ?? emptyPlan();
+}
+// Caller holds withReminderLock for the full read/network/commit operation.
+// Settings stay device-local; plan and its merge baseline commit together.
+export async function applyCloudPlan(plan: PlanRecords, base: PlanRecords): Promise<void> {
+  const current = await loadStudyData();
+  if (backgroundEnabled()) await syncBackgroundReminders({ ...current, ...plan });
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['subjects', 'tasks', 'settings'], 'readwrite');
+    for (const name of ['subjects', 'tasks'] as const) {
+      const store = tx.objectStore(name);
+      store.clear();
+      for (const record of plan[name]) store.put(record);
+    }
+    tx.objectStore('settings').put({ key: 'cloud-base', value: base });
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onabort = tx.onerror = () => { db.close(); reject(new Error('لم يكتمل الحفظ المحلي. أعد المزامنة؛ بقيت نسختك السحابية محفوظة.')); };
+  });
+}
+export async function readGuestPlan(): Promise<PlanRecords> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const req = indexedDB.open('fakker-study-planner', DB_VERSION);
+    req.onupgradeneeded = () => {
+      for (const name of ['subjects', 'tasks', 'settings']) req.result.createObjectStore(name, { keyPath: name === 'settings' ? 'key' : 'id' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(new Error('تعذّر قراءة خطتك المحلية القديمة.'));
+  });
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['subjects', 'tasks'], 'readonly');
+    const subjects = tx.objectStore('subjects').getAll();
+    const tasks = tx.objectStore('tasks').getAll();
+    tx.oncomplete = () => { db.close(); resolve({ subjects: subjects.result, tasks: tasks.result }); };
+    tx.onabort = tx.onerror = () => { db.close(); reject(new Error('تعذّرت قراءة الخطة المحلية.')); };
+  });
+}

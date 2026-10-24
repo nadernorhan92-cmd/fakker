@@ -8,6 +8,168 @@
 import * as zod from 'zod';
 
 
+export const getStudyPlanResponseRevisionMin = 0;
+
+export const getStudyPlanResponsePlanSubjectsItemIdMax = 100;
+
+export const getStudyPlanResponsePlanSubjectsItemNameMax = 80;
+
+export const getStudyPlanResponsePlanSubjectsItemColorMax = 30;
+
+export const getStudyPlanResponsePlanSubjectsItemTeacherMax = 80;
+
+export const getStudyPlanResponsePlanSubjectsItemDescriptionMax = 300;
+
+export const getStudyPlanResponsePlanSubjectsMax = 1000;
+
+export const getStudyPlanResponsePlanTasksItemIdMax = 100;
+
+export const getStudyPlanResponsePlanTasksItemTitleMax = 120;
+
+export const getStudyPlanResponsePlanTasksItemDescriptionMax = 500;
+
+export const getStudyPlanResponsePlanTasksItemSubjectIdMax = 100;
+
+export const getStudyPlanResponsePlanTasksMax = 10000;
+
+
+
+export const GetStudyPlanResponse = zod.object({
+  "revision": zod.number().int().min(getStudyPlanResponseRevisionMin),
+  "plan": zod.object({
+  "subjects": zod.array(zod.object({
+  "id": zod.string().min(1).max(getStudyPlanResponsePlanSubjectsItemIdMax),
+  "name": zod.string().min(1).max(getStudyPlanResponsePlanSubjectsItemNameMax),
+  "color": zod.string().max(getStudyPlanResponsePlanSubjectsItemColorMax),
+  "teacher": zod.string().max(getStudyPlanResponsePlanSubjectsItemTeacherMax).optional(),
+  "description": zod.string().max(getStudyPlanResponsePlanSubjectsItemDescriptionMax).optional()
+})).max(getStudyPlanResponsePlanSubjectsMax),
+  "tasks": zod.array(zod.object({
+  "id": zod.string().min(1).max(getStudyPlanResponsePlanTasksItemIdMax),
+  "title": zod.string().min(1).max(getStudyPlanResponsePlanTasksItemTitleMax),
+  "description": zod.string().max(getStudyPlanResponsePlanTasksItemDescriptionMax).optional(),
+  "subjectId": zod.string().max(getStudyPlanResponsePlanTasksItemSubjectIdMax).optional(),
+  "type": zod.enum(['homework', 'study', 'project', 'exam']),
+  "dueAt": zod.coerce.date(),
+  "priority": zod.enum(['low', 'medium', 'high']),
+  "status": zod.enum(['not-started', 'in-progress', 'completed']),
+  "completedAt": zod.coerce.date().optional(),
+  "reminderAt": zod.coerce.date().optional(),
+  "studyStart": zod.coerce.date().optional(),
+  "studyEnd": zod.coerce.date().optional()
+})).max(getStudyPlanResponsePlanTasksMax)
+})
+})
+
+
+export const putStudyPlanBodyRevisionMin = 0;
+
+export const putStudyPlanBodyPlanSubjectsItemIdMax = 100;
+
+export const putStudyPlanBodyPlanSubjectsItemNameMax = 80;
+
+export const putStudyPlanBodyPlanSubjectsItemColorMax = 30;
+
+export const putStudyPlanBodyPlanSubjectsItemTeacherMax = 80;
+
+export const putStudyPlanBodyPlanSubjectsItemDescriptionMax = 300;
+
+export const putStudyPlanBodyPlanSubjectsMax = 1000;
+
+export const putStudyPlanBodyPlanTasksItemIdMax = 100;
+
+export const putStudyPlanBodyPlanTasksItemTitleMax = 120;
+
+export const putStudyPlanBodyPlanTasksItemDescriptionMax = 500;
+
+export const putStudyPlanBodyPlanTasksItemSubjectIdMax = 100;
+
+export const putStudyPlanBodyPlanTasksMax = 10000;
+
+
+
+export const PutStudyPlanBody = zod.object({
+  "revision": zod.number().int().min(putStudyPlanBodyRevisionMin),
+  "plan": zod.object({
+  "subjects": zod.array(zod.object({
+  "id": zod.string().min(1).max(putStudyPlanBodyPlanSubjectsItemIdMax),
+  "name": zod.string().min(1).max(putStudyPlanBodyPlanSubjectsItemNameMax),
+  "color": zod.string().max(putStudyPlanBodyPlanSubjectsItemColorMax),
+  "teacher": zod.string().max(putStudyPlanBodyPlanSubjectsItemTeacherMax).optional(),
+  "description": zod.string().max(putStudyPlanBodyPlanSubjectsItemDescriptionMax).optional()
+})).max(putStudyPlanBodyPlanSubjectsMax),
+  "tasks": zod.array(zod.object({
+  "id": zod.string().min(1).max(putStudyPlanBodyPlanTasksItemIdMax),
+  "title": zod.string().min(1).max(putStudyPlanBodyPlanTasksItemTitleMax),
+  "description": zod.string().max(putStudyPlanBodyPlanTasksItemDescriptionMax).optional(),
+  "subjectId": zod.string().max(putStudyPlanBodyPlanTasksItemSubjectIdMax).optional(),
+  "type": zod.enum(['homework', 'study', 'project', 'exam']),
+  "dueAt": zod.coerce.date(),
+  "priority": zod.enum(['low', 'medium', 'high']),
+  "status": zod.enum(['not-started', 'in-progress', 'completed']),
+  "completedAt": zod.coerce.date().optional(),
+  "reminderAt": zod.coerce.date().optional(),
+  "studyStart": zod.coerce.date().optional(),
+  "studyEnd": zod.coerce.date().optional()
+})).max(putStudyPlanBodyPlanTasksMax)
+}),
+  "consent": zod.literal(true)
+})
+
+export const putStudyPlanResponseRevisionMin = 0;
+
+export const putStudyPlanResponsePlanSubjectsItemIdMax = 100;
+
+export const putStudyPlanResponsePlanSubjectsItemNameMax = 80;
+
+export const putStudyPlanResponsePlanSubjectsItemColorMax = 30;
+
+export const putStudyPlanResponsePlanSubjectsItemTeacherMax = 80;
+
+export const putStudyPlanResponsePlanSubjectsItemDescriptionMax = 300;
+
+export const putStudyPlanResponsePlanSubjectsMax = 1000;
+
+export const putStudyPlanResponsePlanTasksItemIdMax = 100;
+
+export const putStudyPlanResponsePlanTasksItemTitleMax = 120;
+
+export const putStudyPlanResponsePlanTasksItemDescriptionMax = 500;
+
+export const putStudyPlanResponsePlanTasksItemSubjectIdMax = 100;
+
+export const putStudyPlanResponsePlanTasksMax = 10000;
+
+
+
+export const PutStudyPlanResponse = zod.object({
+  "revision": zod.number().int().min(putStudyPlanResponseRevisionMin),
+  "plan": zod.object({
+  "subjects": zod.array(zod.object({
+  "id": zod.string().min(1).max(putStudyPlanResponsePlanSubjectsItemIdMax),
+  "name": zod.string().min(1).max(putStudyPlanResponsePlanSubjectsItemNameMax),
+  "color": zod.string().max(putStudyPlanResponsePlanSubjectsItemColorMax),
+  "teacher": zod.string().max(putStudyPlanResponsePlanSubjectsItemTeacherMax).optional(),
+  "description": zod.string().max(putStudyPlanResponsePlanSubjectsItemDescriptionMax).optional()
+})).max(putStudyPlanResponsePlanSubjectsMax),
+  "tasks": zod.array(zod.object({
+  "id": zod.string().min(1).max(putStudyPlanResponsePlanTasksItemIdMax),
+  "title": zod.string().min(1).max(putStudyPlanResponsePlanTasksItemTitleMax),
+  "description": zod.string().max(putStudyPlanResponsePlanTasksItemDescriptionMax).optional(),
+  "subjectId": zod.string().max(putStudyPlanResponsePlanTasksItemSubjectIdMax).optional(),
+  "type": zod.enum(['homework', 'study', 'project', 'exam']),
+  "dueAt": zod.coerce.date(),
+  "priority": zod.enum(['low', 'medium', 'high']),
+  "status": zod.enum(['not-started', 'in-progress', 'completed']),
+  "completedAt": zod.coerce.date().optional(),
+  "reminderAt": zod.coerce.date().optional(),
+  "studyStart": zod.coerce.date().optional(),
+  "studyEnd": zod.coerce.date().optional()
+})).max(putStudyPlanResponsePlanTasksMax)
+})
+})
+
+
 export const PushConfigResponse = zod.object({
   "publicKey": zod.string()
 })

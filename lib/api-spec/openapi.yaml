@@ -11,6 +11,32 @@ tags:
   - name: health
     description: Health operations
 paths:
+  /study-plan:
+    get:
+      operationId: getStudyPlan
+      responses:
+        "200":
+          description: Authenticated student's plan
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CloudPlan" }
+        "401": { description: Sign in required }
+    put:
+      operationId: putStudyPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CloudPlanInput" }
+      responses:
+        "200":
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CloudPlan" }
+        "409": { description: Revision conflict }
+        "400": { description: Invalid plan or missing consent }
+        "401": { description: Sign in required }
   /push/config:
     get:
       operationId: pushConfig
@@ -90,6 +116,60 @@ components:
       type: http
       scheme: bearer
   schemas:
+    CloudSubject:
+      type: object
+      additionalProperties: false
+      required: [id, name, color]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        color: { type: string, maxLength: 30 }
+        teacher: { type: string, maxLength: 80 }
+        description: { type: string, maxLength: 300 }
+    CloudTask:
+      type: object
+      additionalProperties: false
+      required: [id, title, type, dueAt, priority, status]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 100 }
+        title: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, maxLength: 500 }
+        subjectId: { type: string, maxLength: 100 }
+        type: { type: string, enum: [homework, study, project, exam] }
+        dueAt: { type: string, format: date-time }
+        priority: { type: string, enum: [low, medium, high] }
+        status: { type: string, enum: [not-started, in-progress, completed] }
+        completedAt: { type: string, format: date-time }
+        reminderAt: { type: string, format: date-time }
+        studyStart: { type: string, format: date-time }
+        studyEnd: { type: string, format: date-time }
+    PlanRecords:
+      type: object
+      additionalProperties: false
+      required: [subjects, tasks]
+      properties:
+        subjects:
+          type: array
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/CloudSubject" }
+        tasks:
+          type: array
+          maxItems: 10000
+          items: { $ref: "#/components/schemas/CloudTask" }
+    CloudPlan:
+      type: object
+      required: [revision, plan]
+      properties:
+        revision: { type: integer, minimum: 0 }
+        plan: { $ref: "#/components/schemas/PlanRecords" }
+    CloudPlanInput:
+      type: object
+      additionalProperties: false
+      required: [revision, plan, consent]
+      properties:
+        revision: { type: integer, minimum: 0 }
+        plan: { $ref: "#/components/schemas/PlanRecords" }
+        consent: { type: boolean, enum: [true] }
     PushConfig:
       type: object
       required: [publicKey]

@@ -5,6 +5,98 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface CloudSubject {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  name: string;
+  /** @maxLength 30 */
+  color: string;
+  /** @maxLength 80 */
+  teacher?: string;
+  /** @maxLength 300 */
+  description?: string;
+}
+
+export type CloudTaskType = typeof CloudTaskType[keyof typeof CloudTaskType];
+
+
+export const CloudTaskType = {
+  homework: 'homework',
+  study: 'study',
+  project: 'project',
+  exam: 'exam',
+} as const;
+
+export type CloudTaskPriority = typeof CloudTaskPriority[keyof typeof CloudTaskPriority];
+
+
+export const CloudTaskPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+} as const;
+
+export type CloudTaskStatus = typeof CloudTaskStatus[keyof typeof CloudTaskStatus];
+
+
+export const CloudTaskStatus = {
+  'not-started': 'not-started',
+  'in-progress': 'in-progress',
+  completed: 'completed',
+} as const;
+
+export interface CloudTask {
+  /**
+     * @minLength 1
+     * @maxLength 100
+     */
+  id: string;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  title: string;
+  /** @maxLength 500 */
+  description?: string;
+  /** @maxLength 100 */
+  subjectId?: string;
+  type: CloudTaskType;
+  dueAt: string;
+  priority: CloudTaskPriority;
+  status: CloudTaskStatus;
+  completedAt?: string;
+  reminderAt?: string;
+  studyStart?: string;
+  studyEnd?: string;
+}
+
+export interface PlanRecords {
+  /** @maxItems 1000 */
+  subjects: CloudSubject[];
+  /** @maxItems 10000 */
+  tasks: CloudTask[];
+}
+
+export interface CloudPlan {
+  /** @minimum 0 */
+  revision: number;
+  plan: PlanRecords;
+}
+
+export interface CloudPlanInput {
+  /** @minimum 0 */
+  revision: number;
+  plan: PlanRecords;
+  consent: true;
+}
+
 export interface PushConfig {
   publicKey: string;
 }

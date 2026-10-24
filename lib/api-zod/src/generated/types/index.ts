@@ -6,7 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './cloudPlan';
+export * from './cloudPlanInput';
+export * from './cloudSubject';
+export * from './cloudTask';
+export * from './cloudTaskPriority';
+export * from './cloudTaskStatus';
+export * from './cloudTaskType';
 export * from './healthStatus';
+export * from './planRecords';
 export * from './pushConfig';
 export * from './pushMessage';
 export * from './pushPlan';

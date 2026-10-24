@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { mergePlans } from "../../fakker/src/lib/plan-merge";
+import type { PlanRecords, Subject, Task } from "../../fakker/src/lib/study-db";
+
+const subject: Subject = { id: "math", name: "رياضيات", color: "#a75e43" };
+const task: Task = { id: "one", title: "مراجعة", subjectId: "math", type: "study", dueAt: "2027-01-01T12:00:00.000Z", status: "not-started", priority: "medium" };
+const base: PlanRecords = { subjects: [subject], tasks: [task] };
+const blank: PlanRecords = { subjects: [], tasks: [] };
+assert.deepEqual(mergePlans(blank, blank, base).plan, base, "new device restores all cloud records");
+assert.deepEqual(mergePlans(blank, base, blank).plan, base, "first upload preserves local plan");
+const local = { subjects: [subject], tasks: [{ ...task, title: "تعديل محلي" }] };
+const cloud = { subjects: [subject], tasks: [{ ...task, priority: "high" as const }] };
+const conflict = mergePlans(base, local, cloud);
+assert.equal(conflict.conflicts.length, 1, "same-record concurrent edits require a choice");
+assert.equal(mergePlans(base, local, cloud, { [conflict.conflicts[0].key]: "cloud" }).plan.tasks[0].priority, "high");
+assert.equal(mergePlans(base, local, cloud, { [conflict.conflicts[0].key]: "local" }).plan.tasks[0].title, "تعديل محلي");
+const newer = { ...cloud, tasks: [{ ...task, title: "تعديل أحدث" }] };
+assert.equal(mergePlans(base, local, newer, { [conflict.conflicts[0].key]: "cloud" }).conflicts.length, 1, "stale choices cannot resolve unseen updates");
+assert.equal(mergePlans(base, { ...base, tasks: [] }, cloud).conflicts.length, 1, "delete versus edit is explicit");
+assert.equal(mergePlans(base, { ...base, tasks: [] }, base).plan.tasks.length, 0, "local deletion propagates");
+assert.equal(mergePlans(base, base, { ...base, tasks: [] }).plan.tasks.length, 0, "remote deletion propagates");
+const different = mergePlans(base, local, { subjects: [{ ...subject, name: "حساب" }], tasks: [task] });
+assert.equal(different.conflicts.length, 0);
+assert.equal(different.plan.subjects[0].name, "حساب");
+assert.equal(different.plan.tasks[0].title, "تعديل محلي");
+assert.equal(mergePlans(base, base, { ...base, subjects: [] }).plan.tasks[0].subjectId, undefined);
+assert.equal(mergePlans(blank, base, base).conflicts.length, 0, "equivalent copies don't conflict");
+process.stdout.write("Plan merge checks passed: restoration, edits, deletes, stale choices, independent changes.\n");
