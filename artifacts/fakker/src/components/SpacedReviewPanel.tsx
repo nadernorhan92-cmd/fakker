@@ -43,7 +43,7 @@ export default function SpacedReviewPanel({ data, onChanged }: { data: StudyData
     <div className="section-head"><h3 id="review-title"><CalendarClock size={17} style={{ verticalAlign: 'middle', marginLeft: 6 }} />مراجعات متباعدة</h3>
       <button className="btn small" data-testid="button-new-review" onClick={() => { setMessage(null); setEditor({}); }}><Plus size={15} /> خطة مراجعة</button></div>
     <p className="quiet review-lead">ثبّت الدرس بمراجعات بعد أيام محددة من موعد البداية، تظهر كمهام دراسة في خطتك.</p>
-    <p className="review-local" data-testid="text-review-local">خطط المراجعة محفوظة على هذا الجهاز فقط، ولا تدخل في النسخ الاحتياطي أو المزامنة السحابية. مهام المراجعة نفسها تُنسخ مثل أي مهمة.</p>
+    <p className="review-local" data-testid="text-review-local">تُحفظ خطط المراجعة على هذا الجهاز. يمكنك تضمينها اختياريًا في النسخة الاحتياطية لنقلها إلى جهاز آخر؛ لا تدخل في المزامنة السحابية.</p>
     {message && <div className={`review-message ${message.error ? 'failed' : ''}`} role={message.error ? 'alert' : 'status'} data-testid="status-review-message">{message.text}</div>}
     {loadError ? <div className="review-message failed" role="alert">{loadError} <button className="btn soft small" data-testid="button-retry-reviews" onClick={() => void reload()}>إعادة المحاولة</button></div>
       : plans === null ? <div className="review-skeleton" aria-label="جارٍ تحميل خطط المراجعة" />

@@ -32,6 +32,39 @@ export function previewReviews(draft: ReviewDraft): { offsetDays: number; dueAt:
 
 const lessonKey = (value: string) => value.trim().replace(/\s+/g, ' ').normalize('NFKC').toLocaleLowerCase('ar');
 
+export function sameReviewSeries(a: ReviewPlan, b: ReviewPlan): boolean {
+  return a.subjectId === b.subjectId && lessonKey(a.lesson) === lessonKey(b.lesson);
+}
+
+export function sameReviewPlan(a: ReviewPlan, b: ReviewPlan): boolean {
+  return a.id === b.id && sameReviewSeries(a, b) && a.sourceTaskId === b.sourceTaskId &&
+    a.baseAt === b.baseAt && [...a.intervals].sort((x, y) => x - y).join(',') ===
+    [...b.intervals].sort((x, y) => x - y).join(',') && Boolean(a.cancelled) === Boolean(b.cancelled);
+}
+
+// Existing plans win during restore; an identical plan ID is safe to finish
+// restoring missing task links, while a duplicate lesson/source is not a new series.
+export function mergeImportedReviewPlans(
+  current: ReviewPlan[], incoming: ReviewPlan[],
+): { plans: ReviewPlan[]; acceptedIds: Set<string> } {
+  const plans = [...current];
+  const acceptedIds = new Set<string>();
+  for (const candidate of incoming) {
+    const sameId = plans.find(plan => plan.id === candidate.id);
+    if (sameId) {
+      if (sameReviewPlan(sameId, candidate)) acceptedIds.add(candidate.id);
+      continue;
+    }
+    const duplicate = plans.some(plan => !plan.cancelled && !candidate.cancelled &&
+      ((candidate.sourceTaskId && plan.sourceTaskId === candidate.sourceTaskId) ||
+       sameReviewSeries(plan, candidate)));
+    if (duplicate) continue;
+    plans.push(candidate);
+    acceptedIds.add(candidate.id);
+  }
+  return { plans, acceptedIds };
+}
+
 export function planReviewChange(
   tasks: Task[], plans: ReviewPlan[], draft: ReviewDraft | null, planId: string,
   subjectIds: string[], now = Date.now(),

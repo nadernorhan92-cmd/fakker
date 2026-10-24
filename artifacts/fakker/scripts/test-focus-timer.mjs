@@ -28,8 +28,8 @@ studyDbSource = studyDbSource
     `const { completedFocusSession, initialFocusTimer, transitionTimer, validateFocusTimer } = await import('${moduleUrl(focusTimerSource)}');`,
   )
   .replace(
-    "import { planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';",
-    'const planReviewChange = () => { throw new Error("spaced reviews are outside this test"); };',
+    "import { mergeImportedReviewPlans, planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';",
+    'const mergeImportedReviewPlans = () => { throw new Error("backup imports are outside this test"); }; const planReviewChange = () => { throw new Error("spaced reviews are outside this test"); };',
   );
 const studyDb = await import(moduleUrl(studyDbSource));
 

@@ -1,6 +1,6 @@
 import { backgroundEnabled, disableBackgroundReminders, syncBackgroundReminders, withReminderLock } from './background-reminders';
 import { completedFocusSession, initialFocusTimer, transitionTimer, validateFocusTimer, type FocusSession, type FocusTimerState, type TimerAction } from './focus-timer';
-import { planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';
+import { mergeImportedReviewPlans, planReviewChange, type ReviewDraft, type ReviewPlan } from './spaced-review';
 
 export type TaskType = 'homework' | 'study' | 'project' | 'exam';
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
@@ -183,30 +183,66 @@ export const clearStudyData = (): Promise<void> => withReminderLock(async () => 
     tx.onerror = () => reject(new Error('حدث خطأ أثناء حذف البيانات.'));
   });
 });
-// Merge atomically, keeping existing records and settings unchanged.
-export const mergeStudyData = (data: Pick<StudyData, 'subjects' | 'tasks'>): Promise<{ subjects: number; tasks: number }> => withReminderLock(async () => {
+// Merge backup records without replacing local student work or device settings.
+export const mergeStudyData = (data: Pick<StudyData, 'subjects' | 'tasks'> & {
+  reviewPlans?: ReviewPlan[]; includeReviewPlans?: boolean;
+}): Promise<{ subjects: number; tasks: number; reviewPlans: number }> => withReminderLock(async () => {
+  const includeReviewPlans = data.includeReviewPlans === true && Array.isArray(data.reviewPlans);
+  const incomingPlans = includeReviewPlans ? data.reviewPlans ?? [] : [];
+  const incomingTasks: Task[] = includeReviewPlans ? data.tasks : data.tasks.map(({ reviewPlanId: _planId, reviewOffsetDays: _offset, ...task }) => task as Task);
   if (backgroundEnabled()) {
     const existing = await loadStudyData();
     const ids = new Set(existing.tasks.map(task => task.id));
-    await syncBackgroundReminders({ ...existing, tasks: [...existing.tasks, ...data.tasks.filter(task => !ids.has(task.id))] });
+    await syncBackgroundReminders({ ...existing, tasks: [...existing.tasks, ...incomingTasks.filter(task => !ids.has(task.id))] });
   }
   const db = await openDb();
-  return new Promise<{ subjects: number; tasks: number }>((resolve, reject) => {
-    const tx = db.transaction(['subjects', 'tasks'], 'readwrite');
-    const counts = { subjects: 0, tasks: 0 };
-    for (const name of ['subjects', 'tasks'] as const) {
-      const store = tx.objectStore(name);
-      const request = store.getAllKeys();
-      request.onsuccess = () => {
-        const existing = new Set(request.result);
-        for (const item of data[name]) {
-          if (!existing.has(item.id)) { store.add(item); counts[name]++; }
+  return new Promise<{ subjects: number; tasks: number; reviewPlans: number }>((resolve, reject) => {
+    const tx = db.transaction(['subjects', 'tasks', 'settings'], 'readwrite');
+    const subjectStore = tx.objectStore('subjects');
+    const taskStore = tx.objectStore('tasks');
+    const settingsStore = tx.objectStore('settings');
+    const subjectKeys = subjectStore.getAllKeys();
+    const currentTasksRequest = taskStore.getAll();
+    const currentPlansRequest = settingsStore.get('review-plans');
+    const counts = { subjects: 0, tasks: 0, reviewPlans: 0 };
+    let cause: unknown;
+    let processed = false;
+    const process = () => {
+      if (processed || subjectKeys.readyState !== 'done' || currentTasksRequest.readyState !== 'done' || currentPlansRequest.readyState !== 'done') return;
+      processed = true;
+      try {
+        const existingSubjects = new Set(subjectKeys.result);
+        const existingTasks = currentTasksRequest.result as Task[];
+        const existingTaskIds = new Set(existingTasks.map(task => task.id));
+        const storedPlans = currentPlansRequest.result as { key: string; value: ReviewPlan[] } | undefined;
+        const currentPlans = storedPlans?.value ?? [];
+        const byBackupSource = new Map(data.tasks.map(task => [task.id, task]));
+        const adjustedPlans = incomingPlans.map(plan => {
+          if (!plan.sourceTaskId) return plan;
+          const local = existingTasks.find(task => task.id === plan.sourceTaskId);
+          const source = byBackupSource.get(plan.sourceTaskId);
+          if (local && source && (local.title !== source.title || local.type !== source.type || local.subjectId !== source.subjectId)) {
+            return { ...plan, sourceTaskId: undefined };
+          }
+          return plan;
+        }).filter(plan => !incomingTasks.some(task => task.reviewPlanId === plan.id &&
+          existingTasks.some(current => current.id === task.id && current.reviewPlanId !== plan.id)));
+        const mergedPlans = mergeImportedReviewPlans(currentPlans, adjustedPlans);
+        const acceptedTasks = incomingTasks.filter(task => !task.reviewPlanId || mergedPlans.acceptedIds.has(task.reviewPlanId));
+        for (const subject of data.subjects) {
+          if (!existingSubjects.has(subject.id)) { subjectStore.add(subject); counts.subjects++; }
         }
-      };
-    }
+        for (const task of acceptedTasks) {
+          if (!existingTaskIds.has(task.id)) { taskStore.add(task); counts.tasks++; }
+        }
+        counts.reviewPlans = mergedPlans.plans.filter(plan => !currentPlans.some(current => current.id === plan.id)).length;
+        if (counts.reviewPlans > 0) settingsStore.put({ key: 'review-plans', value: mergedPlans.plans });
+      } catch (error) { cause = error; tx.abort(); }
+    };
+    subjectKeys.onsuccess = currentTasksRequest.onsuccess = currentPlansRequest.onsuccess = process;
     tx.oncomplete = () => { db.close(); resolve(counts); };
-    tx.onerror = () => reject(new Error('تعذّرت الاستعادة. لم تتغير بياناتك الحالية.'));
-    tx.onabort = () => { db.close(); reject(new Error('لم تكتمل الاستعادة، ولم تُحفظ تغييرات جزئية.')); };
+    tx.onerror = () => reject(cause ?? new Error('تعذّرت الاستعادة. لم تتغير بياناتك الحالية.'));
+    tx.onabort = () => { db.close(); reject(cause ?? new Error('لم تكتمل الاستعادة، ولم تُحفظ تغييرات جزئية.')); };
   });
 });
 export function id(): string { return crypto.randomUUID(); }
