@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { getDueReminders, reminderKey } from '../src/lib/reminders';
+import type { Task } from '../src/lib/study-db';
+
+const now = Date.parse('2026-10-24T12:00:00Z');
+const task: Task = { id: 'review-task', title: 'مراجعة', type: 'study', dueAt: '2026-10-24T12:20:00Z', priority: 'medium', status: 'not-started' };
+assert.equal(getDueReminders([task], 30, new Set(), now).length, 1);
+assert.equal(getDueReminders([task], 10, new Set(), now).length, 0);
+assert.equal(getDueReminders([{...task, status:'completed'}], 30, new Set(), now).length, 0);
+assert.equal(getDueReminders([{...task, dueAt:'2026-10-24T11:00:00Z'}], 30, new Set(), now).length, 0);
+assert.equal(getDueReminders([{...task, reminderAt:'2026-10-24T12:05:00Z'}], 30, new Set(), now).length, 0);
+const custom = {...task, reminderAt:'2026-10-24T11:59:00Z'};
+assert.equal(getDueReminders([custom], 10, new Set(), now).length, 1);
+assert.equal(getDueReminders([custom], 30, new Set([reminderKey(custom, 30)]), now).length, 0);
+assert.equal(getDueReminders([{...task, dueAt:'invalid'}], 30, new Set(), now).length, 0);
+assert.equal(getDueReminders([{...task, reminderAt:'invalid'}], 30, new Set(), now).length, 0);
+assert.equal(getDueReminders([{...task, dueAt:new Date(now).toISOString()}], 30, new Set(), now).length, 1);
+const later = {...custom, id:'later', reminderAt:'2026-10-24T12:00:00Z'};
+assert.deepEqual(getDueReminders([later,custom],30,new Set(),now).map(t=>t.id), [custom.id,later.id]);
+assert.notEqual(reminderKey(task, 30), reminderKey(task, 10));
+assert.equal(task.status, 'not-started');
+console.log('Reminder scheduling, custom dates, duplicates, boundaries and completed-task checks passed.');

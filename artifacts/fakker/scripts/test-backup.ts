@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { makeBackup, parseBackup } from '../src/lib/backup';
+
+const subject = { id: 'subject-one', name: 'الرياضيات', color: '#8879c4' };
+const task = { id: 'task-one', title: 'مراجعة', subjectId: subject.id, type: 'study' as const, dueAt: '2026-11-01T12:00:00.000Z', status: 'completed' as const, completedAt: '2026-10-24T12:00:00.000Z', priority: 'high' as const };
+const backup = makeBackup([subject], [task]);
+const parsed = parseBackup(JSON.stringify(backup));
+assert.equal(parsed.subjects[0].name, subject.name);
+assert.equal(parsed.tasks[0].completedAt, task.completedAt);
+assert.equal(parseBackup(JSON.stringify(makeBackup([], []))).tasks.length, 0);
+assert.throws(() => parseBackup('{'));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, version: 2 })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, subjects: [subject, subject] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, tasks: [task, task] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, tasks: [{ ...task, subjectId: 'missing' }] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, tasks: [{ ...task, dueAt: 'invalid' }] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, subjects: [{ ...subject, color: 'red' }] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, tasks: [{ ...task, status: 'invalid' }] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, tasks: [{ ...task, studyStart: task.dueAt }] })));
+assert.throws(() => parseBackup(JSON.stringify({ ...backup, tasks: [{ ...task, studyStart: task.dueAt, studyEnd: task.dueAt }] })));
+assert.throws(() => parseBackup(' '.repeat(5 * 1024 * 1024 + 1)));
+console.log('نجحت اختبارات النسخ الاحتياطي: سلامة البيانات ورفض الملفات التالفة والتكرار والعلاقات والأوقات غير الصالحة.');

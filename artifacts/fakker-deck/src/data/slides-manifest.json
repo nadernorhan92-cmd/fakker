@@ -6,5 +6,22 @@
     "title": "فَكّر",
     "description": "مساحة عربية لتنظيم المذاكرة والمهام الدراسية.",
     "speakerNotes": ""
-  }
+  },
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928002","position":2,"filepath":"src/pages/slides/Problem.tsx","title":"حين تتعدد المواعيد، يصعب تحديد البداية","description":"المشكلة التي يعالجها التطبيق.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928003","position":3,"filepath":"src/pages/slides/Student.tsx","title":"صُمّم للطالب الذي يريد خطة أوضح","description":"الطالب واحتياجاته اليومية.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928004","position":4,"filepath":"src/pages/slides/ConnectedPlan.tsx","title":"من قائمة مهام إلى خطة دراسة مترابطة","description":"ربط المواد والمهام والمواعيد والإنجاز.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928005","position":5,"filepath":"src/pages/slides/Pages.tsx","title":"ست صفحات، تجربة واحدة","description":"خريطة صفحات التطبيق بلقطات فعلية.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928006","position":6,"filepath":"src/pages/slides/Dashboard.tsx","title":"الرئيسية تجيب: ماذا أفعل اليوم؟","description":"لوحة اليوم ومؤشرات الإنجاز.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928007","position":7,"filepath":"src/pages/slides/Subjects.tsx","title":"كل مادة لها مكانها","description":"إدارة المواد والحفاظ على المهام المرتبطة.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928008","position":8,"filepath":"src/pages/slides/TaskDetails.tsx","title":"مهمة واحدة، بكل تفاصيلها","description":"حقول المهام وأنواعها وأولوياتها وحالاتها.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928009","position":9,"filepath":"src/pages/slides/FindTasks.tsx","title":"اعثر على المهمة، ثم حدّد خطوتك التالية","description":"البحث والتصفية والترتيب وإدارة حالة المهمة.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928010","position":10,"filepath":"src/pages/slides/Exams.tsx","title":"الامتحان القادم حاضر في خطتك","description":"الامتحانات مرتبطة بالمواد والتقويم.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928011","position":11,"filepath":"src/pages/slides/Calendar.tsx","title":"التقويم يحوّل المواعيد إلى صورة واضحة","description":"عرض شهري وأسبوعي وتفاصيل كل يوم.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928012","position":12,"filepath":"src/pages/slides/StudySessions.tsx","title":"جلسة مذاكرة لها بداية ونهاية","description":"أوقات جلسات المذاكرة والتحقق منها.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928013","position":13,"filepath":"src/pages/slides/Reminders.tsx","title":"تذكيرات دون وعود غير واقعية","description":"التذكيرات والإذن وحدود التشغيل في الخلفية.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928014","position":14,"filepath":"src/pages/slides/Progress.tsx","title":"تقدّم يمكن ملاحظته","description":"مؤشرات الإنجاز وساعات المذاكرة.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928015","position":15,"filepath":"src/pages/slides/Technology.tsx","title":"تقنيات مناسبة لتجربة ويب خفيفة","description":"تقنيات الواجهة والحفظ المحلي.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928016","position":16,"filepath":"src/pages/slides/Privacy.tsx","title":"بيانات محفوظة محليًا، وحدود واضحة","description":"استمرار البيانات وحدود المزامنة والخصوصية.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928017","position":17,"filepath":"src/pages/slides/Verification.tsx","title":"لم نتوقف عند تصميم الواجهة","description":"الوظائف التي جرى التحقق منها.","speakerNotes":""},
+  {"id":"07b96fc0-5da2-4b23-90ed-90d552928018","position":18,"filepath":"src/pages/slides/Closing.tsx","title":"ابدأ بخطوة صغيرة، ليصبح يومك أوضح","description":"خطوات البدء واستخدام التطبيق.","speakerNotes":""}
 ]

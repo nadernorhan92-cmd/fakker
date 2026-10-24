@@ -87,4 +87,25 @@ export async function clearStudyData(): Promise<void> {
     tx.onerror = () => reject(new Error('حدث خطأ أثناء حذف البيانات.'));
   });
 }
+// Merge atomically, keeping existing records and settings unchanged.
+export async function mergeStudyData(data: Pick<StudyData, 'subjects' | 'tasks'>): Promise<{ subjects: number; tasks: number }> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['subjects', 'tasks'], 'readwrite');
+    const counts = { subjects: 0, tasks: 0 };
+    for (const name of ['subjects', 'tasks'] as const) {
+      const store = tx.objectStore(name);
+      const request = store.getAllKeys();
+      request.onsuccess = () => {
+        const existing = new Set(request.result);
+        for (const item of data[name]) {
+          if (!existing.has(item.id)) { store.add(item); counts[name]++; }
+        }
+      };
+    }
+    tx.oncomplete = () => { db.close(); resolve(counts); };
+    tx.onerror = () => reject(new Error('تعذّرت الاستعادة. لم تتغير بياناتك الحالية.'));
+    tx.onabort = () => { db.close(); reject(new Error('لم تكتمل الاستعادة، ولم تُحفظ تغييرات جزئية.')); };
+  });
+}
 export function id(): string { return crypto.randomUUID(); }
