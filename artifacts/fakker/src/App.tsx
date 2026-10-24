@@ -16,6 +16,9 @@ import ReminderPanel from '@/components/ReminderPanel';
 import StudyArt from '@/components/StudyArt';
 import { getDueReminders, reminderKey, reminderTime } from '@/lib/reminders';
 
+import BackgroundReminders from '@/components/BackgroundReminders';
+import { syncBackgroundReminders, withReminderLock } from '@/lib/background-reminders';
+
 const palette = ['#a75e43', '#aa7b3c', '#7b8050', '#b47868', '#bd8d4c', '#8b6952', '#bd7650'];
 const nav = [
   { href: '/', label: 'الرئيسية', icon: LayoutDashboard },
@@ -55,7 +58,6 @@ function Workspace() {
   const [monthCursor, setMonthCursor] = useState(new Date());
   const [calendarView, setCalendarView] = useState<'month'|'week'>('month');
   const [settingsDraft, setSettingsDraft] = useState<Settings>(data.settings);
-  const [permission, setPermission] = useState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const notifiedReminders = useRef(new Set<string>());
   const [taskPresetDate, setTaskPresetDate] = useState<string | undefined>();
   const refresh = async () => { setLoadError(''); try { const fresh = await loadStudyData(); setData(fresh); setSettingsDraft(fresh.settings); } catch (e) { setLoadError(e instanceof Error ? e.message : 'تعذّر تحميل بياناتك.'); } finally { setLoading(false); } };
@@ -66,11 +68,18 @@ function Workspace() {
     toastTimer.current = window.setTimeout(() => setToast(null), 4500);
   };
   useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+  useEffect(() => {
+    const reconcile = () => { void withReminderLock(() => loadStudyData().then(syncBackgroundReminders)).catch(e => say(e instanceof Error ? e.message : 'تعذّرت مزامنة التذكيرات.', true)); };
+    reconcile();
+    window.addEventListener('online', reconcile);
+    window.addEventListener('focus', reconcile);
+    return () => { window.removeEventListener('online', reconcile); window.removeEventListener('focus', reconcile); };
+  }, []);
   const subjectById = (sid?:string) => data.subjects.find(s => s.id === sid);
   const tasks = useMemo(() => [...data.tasks].sort((a,b)=>new Date(a.dueAt).getTime()-new Date(b.dueAt).getTime()), [data.tasks]);
   const goNewTask = (date?:string) => { setTaskPresetDate(typeof date==='string'?date:undefined); setTaskModal('new'); };
   const upsertTask = async (task:Task) => { try { await saveTask(task); await refresh(); setTaskModal(null); say(task.id && data.tasks.some(t=>t.id===task.id) ? 'حُفظت تعديلات المهمة.' : 'أُضيفت المهمة إلى خطتك.'); } catch(e) { say(e instanceof Error ? e.message : 'تعذّر حفظ المهمة.', true); } };
-  const removeTask = async (task:Task) => { try { await deleteTask(task.id); await refresh(); setDeleteModal(null); say('حُذفت المهمة.'); } catch { say('تعذّر حذف المهمة، حاول مرة أخرى.', true); } };
+  const removeTask = async (task:Task) => { try { await deleteTask(task.id); await refresh(); setDeleteModal(null); say('حُذفت المهمة.'); } catch(e) { say(e instanceof Error ? e.message : 'تعذّر حذف المهمة، حاول مرة أخرى.', true); } };
   const transitionTask = async (task:Task) => { const status:TaskStatus = task.status === 'completed' ? 'not-started' : 'completed'; try { await saveTask({...task,status}); await refresh(); say(status === 'completed' ? 'أحسنت، أُنجزت المهمة!' : 'أُعيدت المهمة إلى قائمتك.'); } catch { say('تعذّر تحديث حالة المهمة.', true); } };
   const removeSubject = async (subject:Subject) => {
     try {
@@ -81,7 +90,7 @@ function Workspace() {
     } catch { say('تعذّر حذف المادة. لم تُحذف المهام المرتبطة بها.', true); }
   };
   const changeStatus = async (task:Task, status:TaskStatus) => { try { await saveTask({...task,status}); await refresh(); say(`تم تحديث حالة المهمة إلى «${statusLabel[status]}».`); } catch { say('تعذّر تحديث الحالة.',true); } };
-  const persistSettings = async (next:Settings) => { try { await saveSettings(next); setSettingsDraft(next); await refresh(); say('حُفظت إعداداتك على هذا الجهاز.'); } catch { say('تعذّر حفظ الإعدادات.',true); } };
+  const persistSettings = async (next:Settings) => { try { await saveSettings(next); setSettingsDraft(next); await refresh(); say('حُفظت إعداداتك على هذا الجهاز.'); } catch(e) { say(e instanceof Error ? e.message : 'تعذّر حفظ الإعدادات.',true); } };
   useEffect(() => {
     if (!data.settings.notificationsEnabled) return;
     const check = () => {
@@ -92,9 +101,6 @@ function Workspace() {
         say(`حان وقت التذكير: ${due.map(t => `«${t.title}»`).join('، ')}.`);
         for (const task of due) {
           notifiedReminders.current.add(reminderKey(task, data.settings.reminderLeadMinutes));
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            try { new Notification('تذكير من فَكّر', { body: `حان وقت ${task.title}` }); } catch { /* يبقى التذكير داخل التطبيق ظاهرًا إذا رفض المتصفح الإشعار. */ }
-          }
         }
       }
     };
@@ -117,7 +123,7 @@ function Workspace() {
         <Route path="/tasks"><TasksPage data={data} tasks={tasks} filters={filters} setFilters={setFilters} query={query} setQuery={setQuery} onAdd={goNewTask} onEdit={t=>setTaskModal(t)} onDelete={t=>setDeleteModal({kind:'task',item:t})} onComplete={transitionTask} onStatus={changeStatus}/></Route>
         <Route path="/calendar"><CalendarPage data={data} tasks={tasks} selected={selectedDate} setSelected={setSelectedDate} cursor={monthCursor} setCursor={setMonthCursor} view={calendarView} setView={setCalendarView} onAdd={date=>goNewTask(date)} onEdit={t=>setTaskModal(t)} onComplete={transitionTask}/></Route>
         <Route path="/statistics"><StatisticsPage data={data} tasks={tasks}/></Route>
-        <Route path="/settings"><SettingsPage settings={settingsDraft} onSave={persistSettings} permission={permission} setPermission={setPermission} onImported={refresh}/></Route>
+        <Route path="/settings"><SettingsPage settings={settingsDraft} onSave={persistSettings} onImported={refresh}/></Route>
         <Route component={NotFound}/>
       </Switch>
     </main>;
@@ -254,23 +260,18 @@ function StatisticsPage({data,tasks}:{data:StudyData;tasks:Task[]}) {
   </div>;
 }
 
-function SettingsPage({settings,onSave,permission,setPermission,onImported}:{settings:Settings;onSave:(s:Settings)=>Promise<void>;permission:string;setPermission:(s:string)=>void;onImported:()=>Promise<void>}) {
+function SettingsPage({settings,onSave,onImported}:{settings:Settings;onSave:(s:Settings)=>Promise<void>;onImported:()=>Promise<void>}) {
   const [name,setName]=useState(settings.studentName);
   const [lead,setLead]=useState(String(settings.reminderLeadMinutes));
   useEffect(()=>{setName(settings.studentName);setLead(String(settings.reminderLeadMinutes));},[settings]);
-  const requestNotifications=async()=>{
-    if(typeof Notification==='undefined'){setPermission('unsupported');return;}
-    try { const result=await Notification.requestPermission();setPermission(result); if(result==='granted') await onSave({...settings,notificationsEnabled:true}); }
-    catch { setPermission('denied'); }
-  };
   return <div className="page"><Head eyebrow="مساحتك، بطريقتك" title="الإعدادات" description="تفضيلاتك محفوظة في هذا المتصفح وعلى هذا الجهاز."/>
     <section className="card setting-card">
       <div className="setting-row"><div className="setting-copy"><strong>اسمك في فَكّر</strong><small>يظهر الاسم في ترحيبك ومساحتك الشخصية.</small></div><div style={{display:'flex',gap:8}}><input className="field" aria-label="اسم الطالب" data-testid="input-student-name" maxLength={60} value={name} onChange={e=>setName(e.target.value)} placeholder="اكتب اسمك"/><button className="btn small" data-testid="button-save-name" onClick={()=>void onSave({...settings,studentName:name.trim(),reminderLeadMinutes:Number(lead)||30})}>حفظ</button></div></div>
-      <div className="setting-row"><div className="setting-copy"><strong>تذكيرات داخل التطبيق</strong><small>اعرض تنبيهًا عند حلول موعد التذكير أثناء فتح فَكّر. لا تحتاج هذه التذكيرات إلى إذن المتصفح.</small></div><button className={`switch ${settings.notificationsEnabled?'on':''}`} role="switch" aria-checked={settings.notificationsEnabled} aria-label="تفعيل التذكيرات" data-testid="switch-notifications" onClick={()=>void onSave({...settings,notificationsEnabled:!settings.notificationsEnabled})}><span/></button></div>
-      <div className="setting-row"><div className="setting-copy"><strong>إشعارات المتصفح</strong><small>{permission==='unsupported'?'هذا المتصفح لا يدعم إشعارات النظام؛ يمكنك استخدام التذكيرات داخل التطبيق.':permission==='denied'?'السماح بالإشعارات متوقف. يمكنك تغييره من إعدادات الموقع في المتصفح، وتبقى التذكيرات داخل التطبيق متاحة.':'اسمح لفَكّر بإظهار إشعارات النظام عند حلول مواعيد التذكير.'}</small></div>{permission==='granted'?<span className="pill completed">مسموح بها</span>:permission==='unsupported'||permission==='denied'?<span className="pill">غير متاحة</span>:<button className="btn soft small" data-testid="button-enable-notifications" onClick={()=>void requestNotifications()}><Bell size={15}/> السماح بالإشعارات</button>}</div>
+      <div className="setting-row"><div className="setting-copy"><strong>تذكيرات داخل التطبيق</strong><small>اعرض تنبيهًا عند حلول موعد التذكير أثناء فتح فَكّر، دون الحاجة إلى إذن المتصفح. إيقاف هذا الخيار يوقف أيضًا جدولة إشعارات الخلفية دون إلغاء الاشتراك.</small></div><button className={`switch ${settings.notificationsEnabled?'on':''}`} role="switch" aria-checked={settings.notificationsEnabled} aria-label="تفعيل التذكيرات" data-testid="switch-notifications" onClick={()=>void onSave({...settings,notificationsEnabled:!settings.notificationsEnabled})}><span/></button></div>
+      <BackgroundReminders onUpdated={onImported}/>
       <div className="setting-row"><div className="setting-copy"><strong>مهلة التذكير</strong><small>المدة التي تسبق الموعد. فعّل التذكيرات ثم اختر ما يناسبك.</small></div><select className="select" aria-label="مهلة التذكير بالدقائق" data-testid="select-reminder-lead" value={lead} onChange={e=>{setLead(e.target.value);void onSave({...settings,reminderLeadMinutes:Number(e.target.value)});}}><option value="10">١٠ دقائق</option><option value="30">٣٠ دقيقة</option><option value="60">ساعة</option><option value="1440">يوم واحد</option></select></div>
-      <div className="setting-row"><div className="setting-copy"><strong>خصوصية بياناتك</strong><small>مهامك وموادك محفوظة محليًا في قاعدة بيانات IndexedDB داخل هذا المتصفح. لا يوجد حساب ولا مزامنة سحابية؛ تبقى البيانات على هذا الجهاز وقد تزول إذا مسحت بيانات المتصفح.</small></div><span className="pill completed">على هذا الجهاز</span></div>
-      <div className="setting-row"><div className="setting-copy"><strong>التنبيهات في الخلفية</strong><small>تعمل التذكيرات أثناء فتح فَكّر فقط؛ إغلاق الصفحة يوقفها. مجرد تثبيت التطبيق لا يضمن عملها في الخلفية.</small></div><span className="pill">معلومة</span></div>
+      <div className="setting-row"><div className="setting-copy"><strong>خصوصية بياناتك</strong><small>خطتك وموادك وملاحظاتك محفوظة محليًا في IndexedDB، دون حساب أو مزامنة بين الأجهزة. عند تفعيل الخلفية فقط تُحفظ عناوين المهام ومواعيدها واشتراك المتصفح على الخادم؛ تُحذف عند الإلغاء، وتُنظّف المواعيد المنتهية خلال يوم. حذف بيانات الموقع مباشرة لا يلغي الاشتراك على الخادم؛ ألغِه من هنا أولًا.</small></div><span className="pill completed">تحكّم ببياناتك</span></div>
+      <div className="setting-row"><div className="setting-copy"><strong>تحديث التذكيرات وإلغاؤها</strong><small>عند تفعيل الخلفية، يلزم الإنترنت لتعديل مهمة أو حذفها أو إكمالها أو تغيير مهلة تذكيرها، كي نؤكّد تحديث الموعد على الخادم قبل الحفظ. إلغاء الخلفية لا يوقف التذكيرات داخل التطبيق.</small></div><span className="pill">معلومة</span></div>
       <BackupPanel onImported={onImported}/>
       <div className="setting-row"><div className="setting-copy"><strong>حذف بيانات هذا الجهاز</strong><small>حذف نهائي لكل المواد والمهام والتفضيلات المحلية.</small></div><button className="btn danger small" data-testid="button-clear-data" onClick={async()=>{if(window.confirm('هل تريد حذف جميع بيانات فَكّر من هذا الجهاز؟ لا يمكن التراجع عن ذلك.')){try{await clearStudyData();await onSave({studentName:'',notificationsEnabled:false,reminderLeadMinutes:30});window.location.reload();}catch{window.alert('تعذّر حذف البيانات.');}}}}><Trash2 size={14}/> حذف بياناتي</button></div>
     </section>

@@ -1,3 +1,5 @@
+import { backgroundEnabled, disableBackgroundReminders, syncBackgroundReminders, withReminderLock } from './background-reminders';
+
 export type TaskType = 'homework' | 'study' | 'project' | 'exam';
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
 export type Priority = 'low' | 'medium' | 'high';
@@ -66,7 +68,11 @@ export async function deleteSubject(id: string): Promise<void> {
     tx.onerror = () => reject(new Error('تعذّر تحديث المادة والمهام المرتبطة بها.'));
   });
 }
-export async function saveTask(task: Task) {
+export const saveTask = (task: Task) => withReminderLock(async () => {
+  if (backgroundEnabled()) {
+    const data = await loadStudyData();
+    await syncBackgroundReminders({ ...data, tasks: [...data.tasks.filter(t => t.id !== task.id), task] });
+  }
   const previous = task.status === 'completed'
     ? await transact<Task | undefined>('tasks', 'readonly', s => s.get(task.id))
     : undefined;
@@ -74,23 +80,41 @@ export async function saveTask(task: Task) {
     ? task.completedAt ?? (previous?.status === 'completed' ? previous.completedAt : undefined) ?? new Date().toISOString()
     : undefined;
   return put('tasks', { ...task, completedAt });
-}
-export const deleteTask = (id: string) => remove('tasks', id);
-export const saveSettings = (settings: Settings) => put('settings', { key: 'main', value: settings });
-export async function clearStudyData(): Promise<void> {
+});
+export const deleteTask = (id: string) => withReminderLock(async () => {
+  if (backgroundEnabled()) {
+    const data = await loadStudyData();
+    await syncBackgroundReminders({ ...data, tasks: data.tasks.filter(task => task.id !== id) });
+  }
+  return remove('tasks', id);
+});
+export const saveSettings = (settings: Settings) => withReminderLock(async () => {
+  if (backgroundEnabled()) {
+    const data = await loadStudyData();
+    await syncBackgroundReminders({ ...data, settings });
+  }
+  return put('settings', { key: 'main', value: settings });
+});
+export const clearStudyData = (): Promise<void> => withReminderLock(async () => {
+  if (backgroundEnabled()) await disableBackgroundReminders();
   const db = await openDb();
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const tx = db.transaction(['subjects', 'tasks', 'settings'], 'readwrite');
     for (const store of ['subjects', 'tasks', 'settings']) tx.objectStore(store).clear();
     tx.oncomplete = () => { db.close(); resolve(); };
     tx.onabort = () => { db.close(); reject(new Error('تعذّر حذف البيانات، ولم تُحفظ تغييرات جزئية.')); };
     tx.onerror = () => reject(new Error('حدث خطأ أثناء حذف البيانات.'));
   });
-}
+});
 // Merge atomically, keeping existing records and settings unchanged.
-export async function mergeStudyData(data: Pick<StudyData, 'subjects' | 'tasks'>): Promise<{ subjects: number; tasks: number }> {
+export const mergeStudyData = (data: Pick<StudyData, 'subjects' | 'tasks'>): Promise<{ subjects: number; tasks: number }> => withReminderLock(async () => {
+  if (backgroundEnabled()) {
+    const existing = await loadStudyData();
+    const ids = new Set(existing.tasks.map(task => task.id));
+    await syncBackgroundReminders({ ...existing, tasks: [...existing.tasks, ...data.tasks.filter(task => !ids.has(task.id))] });
+  }
   const db = await openDb();
-  return new Promise((resolve, reject) => {
+  return new Promise<{ subjects: number; tasks: number }>((resolve, reject) => {
     const tx = db.transaction(['subjects', 'tasks'], 'readwrite');
     const counts = { subjects: 0, tasks: 0 };
     for (const name of ['subjects', 'tasks'] as const) {
@@ -107,5 +131,5 @@ export async function mergeStudyData(data: Pick<StudyData, 'subjects' | 'tasks'>
     tx.onerror = () => reject(new Error('تعذّرت الاستعادة. لم تتغير بياناتك الحالية.'));
     tx.onabort = () => { db.close(); reject(new Error('لم تكتمل الاستعادة، ولم تُحفظ تغييرات جزئية.')); };
   });
-}
+});
 export function id(): string { return crypto.randomUUID(); }
