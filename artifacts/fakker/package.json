@@ -8,7 +8,8 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:push-worker": "node --test scripts/test-push-worker.mjs"
+    "test:push-worker": "node --test scripts/test-push-worker.mjs",
+    "test:focus-timer": "node --test scripts/test-focus-timer.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

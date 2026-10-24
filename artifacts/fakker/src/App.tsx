@@ -18,6 +18,7 @@ import { SignIn, SignUp } from '@clerk/react';
 import { useDialogKeyboard } from '@/hooks/use-dialog-keyboard';
 import ReminderPanel from '@/components/ReminderPanel';
 import StudyArt from '@/components/StudyArt';
+import FocusTimer from '@/components/FocusTimer';
 import { getDueReminders, reminderKey, reminderTime } from '@/lib/reminders';
 
 import BackgroundReminders from '@/components/BackgroundReminders';
@@ -121,6 +122,7 @@ function Workspace() {
     : <main className="main-area">
       <header className="topbar"><div className="topbar-date">{fmtDate(new Date().toISOString())}</div><div className="topbar-user"><div className="avatar">{(data.settings.studentName || 'ط').slice(0,1)}</div><div><strong data-testid="text-student-name">{data.settings.studentName || 'مساحتك الدراسية'}</strong><small>{pageTitle} · فَكّر</small></div></div></header>
       {data.settings.notificationsEnabled&&<ReminderPanel tasks={data.tasks.filter(task=>reminderIds.includes(task.id)&&task.status!=='completed'&&reminderTime(task,data.settings.reminderLeadMinutes)<=Date.now())} onOpen={task=>setTaskModal(task)} onDismiss={taskId=>setReminderIds(current=>current.filter(value=>value!==taskId))}/>}
+      <FocusTimer tasks={tasks}/>
       <Switch>
         <Route path="/"><Dashboard data={data} tasks={tasks} subjectById={subjectById} onAdd={goNewTask} onComplete={transitionTask}/></Route>
         <Route path="/subjects"><SubjectsPage data={data} onAdd={()=>setSubjectModal('new')} onEdit={s=>setSubjectModal(s)} onDelete={s=>setDeleteModal({kind:'subject',item:s})} onShowTasks={id=>{setFilters({subject:id,status:'',priority:''});setQuery('');setLocation('/tasks');}}/></Route>

@@ -1,4 +1,5 @@
 import { backgroundEnabled, disableBackgroundReminders, syncBackgroundReminders, withReminderLock } from './background-reminders';
+import { initialFocusTimer, transitionTimer, validateFocusTimer, type FocusTimerState, type TimerAction } from './focus-timer';
 
 export type TaskType = 'homework' | 'study' | 'project' | 'exam';
 export type TaskStatus = 'not-started' | 'in-progress' | 'completed';
@@ -50,6 +51,30 @@ function transact<T>(store: string, mode: IDBTransactionMode, work: (objectStore
 const all = <T,>(store: string) => transact<T[]>(store, 'readonly', s => s.getAll());
 const put = <T,>(store: string, value: T) => transact<IDBValidKey>(store, 'readwrite', s => s.put(value));
 const remove = (store: string, id: string) => transact<undefined>(store, 'readwrite', s => s.delete(id));
+// A separate settings record keeps the timer local to this account without
+// changing the plan/backup/cloud shape or upgrading the existing database.
+export async function updateFocusTimer(action: TimerAction): Promise<FocusTimerState> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('settings', 'readwrite');
+    const store = tx.objectStore('settings');
+    const request = store.get('focus-timer');
+    let result: FocusTimerState;
+    let cause: unknown;
+    request.onsuccess = () => {
+      try {
+        const previous = request.result ? validateFocusTimer(request.result.value) : initialFocusTimer();
+        result = transitionTimer(previous, action, Date.now());
+        if (!request.result || result !== previous) store.put({ key: 'focus-timer', value: result });
+      } catch (error) { cause = error; tx.abort(); }
+    };
+    tx.oncomplete = () => { db.close(); resolve(result); };
+    tx.onabort = tx.onerror = () => {
+      db.close();
+      reject(cause ?? new Error('تعذّر حفظ المؤقّت. أعد المحاولة؛ لم تتغير بيانات خطتك.'));
+    };
+  });
+}
 export async function loadStudyData(): Promise<StudyData> {
   const [subjects, tasks, settingsRecord] = await Promise.all([
     all<Subject>('subjects'), all<Task>('tasks'),
