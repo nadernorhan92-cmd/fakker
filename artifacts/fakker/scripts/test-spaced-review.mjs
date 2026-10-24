@@ -9,6 +9,12 @@ const { outputText } = ts.transpileModule(source, {
 });
 const { previewReviews, planReviewChange } =
   await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const analyticsSource = readFileSync(new URL('../src/lib/review-analytics.ts', import.meta.url), 'utf8');
+const { outputText: analyticsOutput } = ts.transpileModule(analyticsSource, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
+});
+const { trackReviewEvent } =
+  await import(`data:text/javascript;base64,${Buffer.from(analyticsOutput).toString('base64')}`);
 const now = new Date('2026-10-24T08:00:00Z').getTime();
 const draft = { lesson: 'الفصل الأول', subjectId: 'math', baseAt: '2026-10-24T10:00:00Z', intervals: [1, 3, 7, 14] };
 const change = (tasks = [], plans = [], value = draft, planId = 'plan', at = now) =>
@@ -22,6 +28,31 @@ test('preview uses offsets from base, sorted without mutating input', () => {
     '2026-10-31T10:00:00.000Z', '2026-11-07T10:00:00.000Z',
   ]);
   assert.deepEqual(value.intervals, [14, 1, 7, 3]);
+});
+
+test('review analytics sends only the aggregate count and never disrupts app behavior', () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const calls = [];
+  try {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { umami: { track: (...args) => calls.push(args) } },
+    });
+    trackReviewEvent('spaced_review_previewed', 4);
+    assert.deepEqual(calls, [['spaced_review_previewed', { review_count: 4 }]]);
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: { umami: { track: () => { throw new Error('analytics unavailable'); } } },
+    });
+    assert.doesNotThrow(() => trackReviewEvent('spaced_review_saved', 3));
+
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: {} });
+    assert.doesNotThrow(() => trackReviewEvent('spaced_review_cancelled', 0));
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
+    else delete globalThis.window;
+  }
 });
 
 test('invalid, repeated or excessive intervals cannot be confirmed', () => {

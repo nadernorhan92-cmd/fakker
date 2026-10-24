@@ -3,6 +3,7 @@ import { CalendarClock, Pencil, Plus, X } from 'lucide-react';
 import type { StudyData, Task } from '@/lib/study-db';
 import { cancelReviewPlan, loadReviewPlans, saveReviewPlan } from '@/lib/study-db';
 import { isUpcomingReview, previewReviews, type ReviewDraft, type ReviewPlan } from '@/lib/spaced-review';
+import { trackReviewEvent } from '@/lib/review-analytics';
 import { useDialogKeyboard } from '@/hooks/use-dialog-keyboard';
 
 const DEFAULT_INTERVALS = '1، 3، 7، 14';
@@ -94,6 +95,7 @@ function ReviewDialog({ data, plan, onClose, onSaved }: { data: StudyData; plan?
       const items = previewReviews(draft).filter(it => new Date(it.dueAt).getTime() > now && !preserved.some(t => t.reviewOffsetDays === it.offsetDays || t.dueAt === it.dueAt));
       if (!items.length) return setError('لا توجد مراجعات مقبلة جديدة بهذه الفواصل؛ كل المواعيد ماضية أو محفوظة. اختر بداية أو فواصل لاحقة.');
       setPreview({ draft, items }); setError('');
+      trackReviewEvent('spaced_review_previewed', items.length);
     } catch (err) { setError(err instanceof Error ? err.message : 'تعذّر حساب المواعيد.'); }
   };
 
@@ -103,7 +105,11 @@ function ReviewDialog({ data, plan, onClose, onSaved }: { data: StudyData; plan?
       setPreview(null); setError('مرّ أحد مواعيد المعاينة. عاين المواعيد مجددًا قبل الحفظ.'); return;
     }
     setBusy(true); setError('');
-    try { await saveReviewPlan(preview.draft, plan?.id); await onSaved(plan ? 'حُدّثت المراجعات القادمة للخطة.' : `أُضيفت ${preview.items.length} مراجعات إلى خطتك.`); }
+    try {
+      await saveReviewPlan(preview.draft, plan?.id);
+      trackReviewEvent(plan ? 'spaced_review_updated' : 'spaced_review_saved', preview.items.length);
+      await onSaved(plan ? 'حُدّثت المراجعات القادمة للخطة.' : `أُضيفت ${preview.items.length} مراجعات إلى خطتك.`);
+    }
     catch (err) { setError(err instanceof Error ? err.message : 'تعذّر حفظ خطة المراجعة. لم يتغير شيء.'); setBusy(false); }
   };
 
@@ -150,7 +156,11 @@ function CancelDialog({ plan, count, onClose, onDone }: { plan: ReviewPlan; coun
   const run = async () => {
     if (busy) return;
     setBusy(true);
-    try { await cancelReviewPlan(plan.id); await onDone(`أُلغيت خطة «${plan.lesson}» وحُذفت مراجعاتها القادمة.`); }
+    try {
+      await cancelReviewPlan(plan.id);
+      trackReviewEvent('spaced_review_cancelled', count);
+      await onDone(`أُلغيت خطة «${plan.lesson}» وحُذفت مراجعاتها القادمة.`);
+    }
     catch (e) { await onDone(e instanceof Error ? e.message : 'تعذّر إلغاء الخطة. لم يتغير شيء.', true); setBusy(false); }
   };
   return <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget && !busy) onClose(); }}>
