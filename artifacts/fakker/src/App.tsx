@@ -13,6 +13,7 @@ import NotFound from '@/pages/not-found';
 import BackupPanel from '@/components/BackupPanel';
 import { useDialogKeyboard } from '@/hooks/use-dialog-keyboard';
 import ReminderPanel from '@/components/ReminderPanel';
+import StudyArt from '@/components/StudyArt';
 import { getDueReminders, reminderKey, reminderTime } from '@/lib/reminders';
 
 const palette = ['#a75e43', '#aa7b3c', '#7b8050', '#b47868', '#bd8d4c', '#8b6952', '#bd7650'];
@@ -131,7 +132,7 @@ function Workspace() {
   </div>;
 }
 function App() { return <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/,'')}><Workspace/></WouterRouter>; }
-function NavItem({href,label,icon:Icon,active}:{href:string;label:string;icon:typeof LayoutDashboard;active:boolean}) { return <Link href={href} className={`nav-link ${active?'active':''}`} data-testid={`link-nav-${href==='/'?'home':href.slice(1)}`} aria-current={active?'page':undefined}><Icon size={19}/><span>{label}</span></Link>; }
+function NavItem({href,label,icon:Icon,active}:{href:string;label:string;icon:typeof LayoutDashboard;active:boolean}) { return <Link href={href} className={`nav-link ${active?'active':''}`} data-testid={`link-nav-${href==='/'?'home':href.slice(1)}`} aria-label={label} title={label} aria-current={active?'page':undefined}><Icon size={19} aria-hidden="true"/><span>{label}</span></Link>; }
 function Head({eyebrow,title,description,action}:{eyebrow:string;title:string;description?:string;action?:ReactNode}){return <div className="page-head"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2>{description&&<p>{description}</p>}</div>{action}</div>}
 function Empty({title,description,action}:{title:string;description:string;action?:React.ReactNode}) {return <div className="empty"><div className="empty-mark"><FolderOpen size={20}/></div><strong>{title}</strong><p>{description}</p>{action&&<div style={{marginTop:15}}>{action}</div>}</div>}
 function Dashboard({data,tasks,subjectById,onAdd,onComplete}:{data:StudyData;tasks:Task[];subjectById:(id?:string)=>Subject|undefined;onAdd:()=>void;onComplete:(t:Task)=>void}) {
@@ -142,6 +143,7 @@ function Dashboard({data,tasks,subjectById,onAdd,onComplete}:{data:StudyData;tas
   const progress=tasks.length?Math.round(tasks.filter(t=>t.status==='completed').length/tasks.length*100):0;
   const firstName=data.settings.studentName.trim().split(/\s+/)[0];
   return <div className="page"><Head eyebrow="مساحة هادئة لأسبوعك" title={firstName?`أهلًا ${firstName}، لنرتّب يومك`:'أهلًا بك في فَكّر'} description="خطوات صغيرة وواضحة، تصنع فرقًا كبيرًا." action={<button className="btn" data-testid="button-add-task" onClick={onAdd}><Plus size={17}/> مهمة جديدة</button>}/>
+    <section className="hero-card" data-testid="card-daily-hero"><div><h3>تحدّي اليوم</h3><p>{today.length?`أمامك ${today.length-completed} من ${today.length} مهام اليوم.`:'لا مهام لليوم بعد، ابدأ بخطوة صغيرة.'}</p><div className="hero-meta"><span>{fmtDate(new Date().toISOString(),{weekday:'long',day:'numeric',month:'long'})}</span><span>إنجازك {progress}٪</span></div></div><StudyArt className="hero-art"/></section>
     <div className="grid stats-grid">
       <Stat title="مهام اليوم" value={today.length} sub="ما ينتظرك اليوم" icon={<Sun size={17}/>}/>
       <Stat title="أُنجزت اليوم" value={completedToday} sub="حسب تاريخ إكمال المهمة" icon={<CheckCheck size={17}/>}/>
