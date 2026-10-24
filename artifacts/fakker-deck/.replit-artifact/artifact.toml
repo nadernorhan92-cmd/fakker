@@ -1,0 +1,28 @@
+kind = "slides"
+previewPath = "/fakker-deck/"
+title = "فَكّر — عرض المشروع"
+description = "عرض عربي من ١٨ شريحة يشرح فكرة فَكّر وصفحاته ووظائفه وتقنياته واختباراته وحدود الحفظ المحلي."
+version = "1.0.0"
+id = "artifacts/fakker-deck"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/fakker-deck/" ]
+localPort = 21522
+
+[services.development]
+run = "pnpm --filter @workspace/fakker-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fakker-deck", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fakker-deck/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21522"
+BASE_PATH = "/fakker-deck/"
