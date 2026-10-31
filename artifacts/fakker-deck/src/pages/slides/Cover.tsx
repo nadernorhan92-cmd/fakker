@@ -1,21 +1,24 @@
+import { PartnerMarks, SlideBackdrop } from '@/components/DeckElements';
+
 const base = import.meta.env.BASE_URL;
 
 export default function Cover() {
-  return (
-    <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body" dir="ltr">
-      <div className="absolute left-0 top-0 w-[50vw] h-full px-[6vw] py-[8vh] flex flex-col justify-between" dir="rtl">
-        <p className="text-[1.5vw] font-semibold m-0">فَكّر</p>
-        <div>
-          <div className="w-[3vw] h-[0.4vh] bg-primary mb-[4vh]" />
-          <h1 className="font-display text-[8vw] font-extrabold leading-[1.4] m-0">فَكّر</h1>
-          <p className="text-[2vw] leading-[1.8] text-muted mt-[3vh] mb-0">مساحة عربية لتنظيم المذاكرة والمهام الدراسية.</p>
-        </div>
-        <span className="text-[1.5vw] text-muted">فَكّر</span>
-      </div>
-      <div className="absolute right-0 top-0 w-[50vw] h-full">
-        <img src={`${base}study-workspace.jpg`} crossOrigin="anonymous" alt="مساحة دراسة هادئة ومضيئة" className="deck-photo" />
-        <div className="absolute inset-0 bg-gradient-to-r from-bg via-transparent to-transparent" />
+  return <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body" dir="rtl">
+    <SlideBackdrop tone="rose" />
+    <div className="absolute z-10 left-[6vw] top-[6vh]"><PartnerMarks /></div>
+    <div className="absolute left-[3vw] top-[17vh] w-[43vw] h-[70vh] deck-photo-frame">
+      <img src={`${base}ai-cover-study_2.jpg`} crossOrigin="anonymous" alt="صورة مولّدة لمكتب مذاكرة هادئ بألوان كشمير" />
+    </div>
+    <div className="absolute z-10 right-[8vw] top-[22vh] w-[42vw]">
+      <p className="deck-kicker"><span className="deck-rule" /> عرض تقديمي عن الموقع</p>
+      <h1 className="font-display text-[8vw] font-extrabold leading-[1.35] m-0 mt-[2vh]">فَكّر</h1>
+      <p className="text-[2.3vw] leading-[1.7] text-muted mt-[1vh] mb-0">مساحة عربية تجمع خطة المذاكرة والمهام والمواعيد في مكان واحد.</p>
+      <div className="mt-[5vh] border-t border-[#d8c4ba] pt-[2.5vh]">
+        <p className="m-0 text-[2vw] font-semibold">إعداد الطالبة</p>
+        <p className="m-0 mt-[.5vh] text-[2.15vw]">نورهان نادر حجازي</p>
+        <p className="m-0 mt-[2vh] text-[1.7vw] text-muted">إشراف</p>
+        <p className="m-0 mt-[.5vh] text-[1.8vw] font-semibold" dir="ltr">Taha Mahmoud Metwally Nour El-Dein</p>
       </div>
     </div>
-  );
+  </div>;
 }

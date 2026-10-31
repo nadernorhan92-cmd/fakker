@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "vszhdkxbSI27nOjYP_eMv"
+uri = "file://.local/outputs/-----------------.pdf"
+type = "pdf"
+title = "فَكّر — عرض المشروع (PDF)"
+description = "عرض المشروع من 12 شريحة، يشرح فكرة وخصائص فَكّر."
+logical_id = "d9efa26b-d906-4c65-9267-7c3e749c6276"
+content_hash = "sha256:628528c31312096c72cc67eab6231fc62a0667f7029c451f93db2fa25adf2cec"
+size = 1570886
+mtime_ms = 1793468897280
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/d9efa26b-d906-4c65-9267-7c3e749c6276/dc7411c1-307d-4dd8-b060-8de4d80508c4"
+storage_version_token = "1793468897785325"
+content_type = "application/pdf"

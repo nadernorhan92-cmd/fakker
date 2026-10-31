@@ -11,12 +11,11 @@
 }
 
 :root {
-  /* Replace these with brand colors */
-  --slide-primary: #18181b;
-  --slide-accent: #e4e4e7;
-  --slide-bg: #f4f4f5;
-  --slide-text: #18181b;
-  --slide-muted: #52525b;
+  --slide-primary: #9b625a;
+  --slide-accent: #ead9d0;
+  --slide-bg: #fffdfb;
+  --slide-text: #493b38;
+  --slide-muted: #806f6a;
   --font-display-family: 'Cairo', sans-serif;
   --font-body-family: 'IBM Plex Sans Arabic', sans-serif;
   color-scheme: light;
@@ -157,4 +156,194 @@ body {
 .deck-panel {
   padding: 3vw;
   background: #e4e4e7;
+}
+
+.deck-header {
+  position: absolute;
+  z-index: 5;
+  inset: 5.6vh 6vw auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1.7vw;
+  font-weight: 700;
+}
+.deck-footer {
+  position: absolute;
+  z-index: 5;
+  inset: auto 6vw 4.5vh;
+  display: flex;
+  justify-content: space-between;
+  color: #806f6a;
+  font-size: 1.5vw;
+}
+.deck-rule {
+  width: 3vw;
+  height: .45vh;
+  border-radius: 999px;
+  background: #b97b70;
+}
+.deck-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.deck-ambient::before,
+.deck-ambient::after {
+  content: "";
+  position: absolute;
+  display: block;
+  border-radius: 54% 46% 63% 37% / 45% 54% 46% 55%;
+}
+.deck-ambient::before {
+  width: 27vw;
+  height: 27vw;
+  top: -12vw;
+  right: -6vw;
+  background: #f0dcd3;
+  transform: rotate(19deg);
+}
+.deck-ambient::after {
+  width: 23vw;
+  height: 18vw;
+  bottom: -10vw;
+  left: -5vw;
+  background: #ead9d0;
+  transform: rotate(-21deg);
+}
+.deck-ambient.rose::before { background: #efd2d0; }
+.deck-ambient.rose::after { background: #f1e2dc; }
+.deck-ambient.cocoa::before { background: #e4d2c8; }
+.deck-ambient.cocoa::after { background: #f3e7df; }
+.deck-content {
+  position: absolute;
+  z-index: 2;
+  top: 18vh;
+  right: 7vw;
+  left: 7vw;
+}
+.deck-heading {
+  margin: 0;
+  font-family: var(--font-display-family);
+  font-size: 4vw;
+  font-weight: 800;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+.deck-subheading {
+  margin: 2vh 0 0;
+  color: var(--slide-muted);
+  font-size: 2vw;
+  line-height: 1.7;
+}
+.deck-copy-large {
+  font-size: 2.2vw;
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+.deck-copy-medium {
+  font-size: 2vw;
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+.deck-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 1vw;
+  color: #9b625a;
+  font-size: 1.65vw;
+  font-weight: 700;
+}
+.deck-card {
+  border: 1px solid rgba(155, 98, 90, .15);
+  border-radius: 2vw;
+  background: rgba(255, 253, 251, .88);
+  box-shadow: 0 1.4vw 3.2vw rgba(91, 61, 52, .08);
+}
+.deck-photo-frame {
+  overflow: hidden;
+  border-radius: 2.2vw;
+  box-shadow: 0 2vw 4vw rgba(91, 61, 52, .16);
+}
+.deck-photo-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.deck-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #f1e3dd;
+  color: #74534c;
+  padding: 1vh 1.5vw;
+  font-size: 1.7vw;
+  font-weight: 600;
+}
+.deck-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 1.5vw;
+}
+.partner-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: .55vw;
+  color: #493b38;
+  font-family: Arial, sans-serif;
+  font-size: 1.6vw;
+  font-weight: 700;
+  direction: ltr;
+  white-space: nowrap;
+}
+.partner-mark svg { width: 2vw; height: 2vw; flex: none; }
+.partner-mark .partner-upload {
+  width: 2.5vw;
+  height: 2.5vw;
+  flex: none;
+  border: .12vw solid #fff;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 .25vw .8vw rgba(91, 61, 52, .16);
+}
+.partner-mark.nord { color: #74534c; letter-spacing: .04em; }
+.partner-divider {
+  width: 1px;
+  height: 3vh;
+  background: rgba(116, 83, 76, .35);
+}
+.deck-line {
+  width: 3.5vw;
+  height: .45vh;
+  border-radius: 999px;
+  background: #b97b70;
+}
+.deck-quote {
+  border-radius: 2vw;
+  background: #f2e7e1;
+  padding: 2.2vw;
+}
+.deck-stat {
+  color: #9b625a;
+  font-family: var(--font-display-family);
+  font-size: 4.3vw;
+  font-weight: 800;
+  line-height: 1;
+}
+.deck-screen-wrap {
+  overflow: hidden;
+  border: 1px solid rgba(116, 83, 76, .22);
+  border-radius: 1.8vw;
+  background: #fff;
+  box-shadow: 0 1.5vw 3vw rgba(91, 61, 52, .12);
+}
+.deck-screen-wrap img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: top center;
 }

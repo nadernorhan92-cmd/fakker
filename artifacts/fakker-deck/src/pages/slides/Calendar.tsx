@@ -1,17 +1,24 @@
+import { SlideBackdrop, SlideFooter, SlideHeader } from '@/components/DeckElements';
+
 const base = import.meta.env.BASE_URL;
+
 export default function Calendar() {
   return <div className="w-screen h-screen overflow-hidden relative bg-bg text-text font-body" dir="rtl">
-    <header className="deck-head"><span>فَكّر</span><span className="w-[3vw] h-[0.4vh] bg-primary"/></header>
-    <h1 className="deck-title">التقويم يحوّل المواعيد إلى صورة واضحة</h1>
-    <div className="deck-body grid grid-cols-[0.75fr_1.25fr] gap-[3vw] items-center">
-      <ul className="deck-list deck-copy">
-        <li>عرض شهري للمواعيد على امتداد الشهر</li>
-        <li>عرض أسبوعي للتخطيط القريب</li>
-        <li>اختيار أي يوم لعرض مهامه</li>
-        <li>التنقل بين الأسابيع والأشهر</li>
-      </ul>
-      <img src={`${base}calendar.jpg`} crossOrigin="anonymous" alt="صفحة التقويم الشهري الفعلية في فَكّر" className="deck-screen border border-[#d4d4d8]"/>
+    <SlideBackdrop tone="cocoa" />
+    <SlideHeader />
+    <div className="deck-content">
+      <p className="deck-kicker">التقويم والامتحانات</p>
+      <h1 className="deck-heading mt-[1.5vh]">المواعيد تظهر في سياقها</h1>
+      <p className="deck-subheading">تنقّلي بين العرض الشهري والأسبوعي، واختاري اليوم لعرض تفاصيله.</p>
     </div>
-    <footer className="deck-foot">١١</footer>
+    <div className="absolute z-10 right-[8vw] top-[45vh] w-[32vw] flex flex-col gap-[2.2vh] deck-copy-medium">
+      <p className="m-0">اربطي الامتحان بالمادة وموعده.</p>
+      <p className="m-0">شاهدي أقرب امتحان في الرئيسية.</p>
+      <p className="m-0">خططي لجلسة مذاكرة حول الموعد.</p>
+    </div>
+    <div className="absolute z-10 left-[8vw] top-[39vh] w-[47vw] h-[44vh] deck-screen-wrap">
+      <img src={`${base}calendar.jpg`} crossOrigin="anonymous" alt="لقطة فعلية للتقويم الشهري في تطبيق فَكّر" />
+    </div>
+    <SlideFooter page="٦" />
   </div>;
 }
