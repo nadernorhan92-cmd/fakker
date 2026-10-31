@@ -295,14 +295,14 @@ body {
   gap: .35vw;
   font-size: 1.5vw;
 }
-.deck-header .partner-mark svg {
-  width: 1.8vw;
-  height: 1.8vw;
-}
 .deck-header .partner-mark .partner-upload {
   width: 1.8vw;
   height: 1.8vw;
   border-width: .08vw;
+}
+.deck-header .partner-mark .replit-logo {
+  width: 5.2vw;
+  height: auto;
 }
 .deck-header .partner-divider {
   height: 2.1vh;
@@ -318,7 +318,7 @@ body {
   direction: ltr;
   white-space: nowrap;
 }
-.partner-mark svg { width: 2vw; height: 2vw; flex: none; }
+.partner-mark .replit-logo { width: 7.4vw; height: auto; flex: none; }
 .partner-mark .partner-upload {
   width: 2.5vw;
   height: 2.5vw;
