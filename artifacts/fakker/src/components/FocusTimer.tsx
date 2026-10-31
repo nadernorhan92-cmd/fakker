@@ -18,7 +18,7 @@ function spoken(ms: number) {
 const clamp = (v: number, max: number) => Math.min(max, Math.max(1, Math.round(v)));
 
 export default function FocusTimer({ tasks }: { tasks: Task[] }) {
-  const { state, remainingMs, busy, error, start, pause, reset, configure, next } = useFocusTimer();
+  const { state, remainingMs, busy, error, retry, start, pause, reset, configure, next } = useFocusTimer();
   const uid = useId();
   const [focusDraft, setFocusDraft] = useState('25');
   const [breakDraft, setBreakDraft] = useState('5');
@@ -46,7 +46,10 @@ export default function FocusTimer({ tasks }: { tasks: Task[] }) {
   useEffect(() => { if (confirmReset) cancelRef.current?.focus(); }, [confirmReset]);
 
   if (!state) {
-    if (error) return <section className="ft-card"><p className="ft-error" role="alert">{error} ستتم إعادة المحاولة تلقائيًا.</p></section>;
+    if (error) return <section className="ft-card">
+      <p className="ft-error" role="alert">{error} لم تُحمّل الحالة المحفوظة بعد، ولم يُعرض تغيير جديد.</p>
+      <div className="ft-actions"><button className="btn soft small" disabled={busy} onClick={() => void retry()} data-testid="button-focus-retry">إعادة المحاولة</button></div>
+    </section>;
     return <section className="ft-card ft-loading" aria-busy="true" aria-label="جارٍ تحميل مؤقّت التركيز" data-testid="focus-timer-loading"><div className="ft-skel"/><div className="ft-skel short"/></section>;
   }
 
@@ -80,7 +83,10 @@ export default function FocusTimer({ tasks }: { tasks: Task[] }) {
       </span>
       <span className="ft-mini" aria-label={spoken(shownMs)} data-testid="text-focus-remaining-mini">{clock(shownMs)}</span>
     </button>
-    {error && <p className="ft-error" role="alert" data-testid="text-focus-error">{error}</p>}
+    {error && <>
+      <p className="ft-error" role="alert" data-testid="text-focus-error">{error}</p>
+      <div className="ft-actions"><button className="btn soft small" disabled={busy} onClick={() => void retry()} data-testid="button-focus-retry">إعادة المحاولة</button></div>
+    </>}
 
     {completed && <div className="ft-done" data-testid="status-focus-complete">
       <div><strong>{isFocus ? 'أحسنت، انتهت جلسة التركيز.' : 'انتهت الاستراحة.'}</strong><p>{isFocus ? `خذ ${ar(state.breakMinutes)} دقائق لتريح ذهنك، لن تبدأ تلقائيًا.` : `جلسة التركيز التالية ${ar(state.focusMinutes)} دقيقة، ابدأها حين تكون مستعدًا.`}</p></div>

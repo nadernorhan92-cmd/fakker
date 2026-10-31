@@ -8,20 +8,30 @@ export function useFocusTimer() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
+  const failedAction = useRef<TimerAction | null>(null);
   const mounted = useRef(false);
   const channel = useRef<BroadcastChannel | null>(null);
-  const run = useCallback(async (action: TimerAction) => {
+  const run = useCallback(async (action: TimerAction, retrying = false) => {
     if (pending.current) return false;
     pending.current = true;
     const interactive = action.type !== 'reconcile';
     if (interactive) setBusy(true);
     try {
       const result = await updateFocusTimer(action);
-      if (mounted.current) { setState(result.state); setNow(Date.now()); setError(null); }
+      if (mounted.current) {
+        setState(result.state);
+        setNow(Date.now());
+        if (retrying || interactive || !failedAction.current) setError(null);
+      }
+      if (retrying || interactive) failedAction.current = null;
       if (action.type !== 'reconcile' || result.sessionRecorded) channel.current?.postMessage('changed');
       return true;
     } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : 'تعذّر حفظ المؤقّت.');
+      if (interactive) failedAction.current = action;
+      if (mounted.current) {
+        const message = e instanceof Error ? e.message : 'تعذّر حفظ المؤقّت.';
+        setError(interactive ? `${message} لم يُعتمد التغيير؛ الحالة السابقة للمؤقّت ما زالت محفوظة.` : message);
+      }
       return false;
     } finally {
       pending.current = false;
@@ -58,6 +68,7 @@ export function useFocusTimer() {
 
   return {
     state, remainingMs, busy, error,
+    retry: () => run(failedAction.current ?? { type: 'reconcile' }, true),
     start: () => run({ type: 'start' }),
     pause: () => run({ type: 'pause' }),
     reset: () => run({ type: 'reset' }),

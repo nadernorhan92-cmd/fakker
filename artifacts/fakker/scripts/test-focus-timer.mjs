@@ -330,7 +330,7 @@ test('two open timer tabs serialize start, pause and reset, then restore the dea
   studyDb.setStudyAccount(null);
 });
 
-test('a failed IndexedDB write is rejected and the hook exposes an error without optimistic success', async () => {
+test('a failed timer write keeps the previous state and a manual retry commits it only after success', async () => {
   studyDb.setStudyAccount('focus-write-failure');
   const tab = mountTimerTab();
   await settle(tab);
@@ -345,7 +345,34 @@ test('a failed IndexedDB write is rejected and the hook exposes an error without
     tab.render();
     assert.equal(tab.current.state.status, 'idle');
     assert.match(tab.current.error, /محاكاة تعذّر التخزين/);
+    assert.match(tab.current.error, /الحالة السابقة للمؤقّت ما زالت محفوظة/);
     assert.equal((await studyDb.updateFocusTimer({ type: 'reconcile' })).state.status, 'idle');
+    tab.render();
+    assert.ok(tab.current.error, 'a background reload must not dismiss the failed-change notice');
+
+    IDBObjectStore.prototype.put = originalPut;
+    assert.equal(await tab.current.retry(), true);
+    tab.render();
+    assert.equal(tab.current.state.status, 'running');
+    assert.equal(tab.current.error, null);
+    assert.equal((await studyDb.updateFocusTimer({ type: 'reconcile' })).state.status, 'running');
+
+    clock += 25 * 60_000;
+    IDBObjectStore.prototype.put = function(value, ...args) {
+      if (value?.key === 'focus-sessions') throw quotaFailure;
+      return originalPut.call(this, value, ...args);
+    };
+    assert.equal(await tab.current.retry(), false);
+    tab.render();
+    assert.equal(tab.current.state.status, 'running', 'completion must not appear before the session transaction commits');
+    assert.equal((await studyDb.loadFocusSessions()).length, 0);
+
+    IDBObjectStore.prototype.put = originalPut;
+    assert.equal(await tab.current.retry(), true);
+    tab.render();
+    assert.equal(tab.current.state.status, 'completed');
+    assert.equal(tab.current.error, null);
+    assert.equal((await studyDb.loadFocusSessions()).length, 1);
   } finally {
     IDBObjectStore.prototype.put = originalPut;
     tab.unmount();
