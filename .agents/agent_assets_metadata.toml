@@ -70,3 +70,17 @@ mtime_ms = 1793481126908
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/2030b793-10f5-4b82-97d0-bab0867267bf/27875969-814a-46c4-92a3-9c8f581788bc"
 storage_version_token = "1793481127427367"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "_qk2sZ_LL9sALUIrWYkEi"
+uri = "file://.local/outputs/Fakker-Download-Ready.pdf"
+type = "pdf"
+title = "اضغطي هنا لتنزيل فَكّر PDF"
+description = "النسخة النهائية من العرض، 12 شريحة، بشعار Replit الرسمي. افتحي الملف ثم اختاري تنزيل أو حفظ."
+logical_id = "3f5d27a9-dc28-4dd7-90bf-d4bcbb69d7c1"
+content_hash = "sha256:270f211fcd3300b24a05c41b187ef96495f0653b2a2e1cb751c099169f0c79d1"
+size = 1626836
+mtime_ms = 1793481214968
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/3f5d27a9-dc28-4dd7-90bf-d4bcbb69d7c1/e434b16a-dc89-48d5-8d38-e9c1c6d63a26"
+storage_version_token = "1793481215461904"
+content_type = "application/pdf"
