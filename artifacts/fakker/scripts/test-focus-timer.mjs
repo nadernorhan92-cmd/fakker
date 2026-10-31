@@ -352,3 +352,78 @@ test('a failed IndexedDB write is rejected and the hook exposes an error without
     studyDb.setStudyAccount(null);
   }
 });
+
+test('clearing history preserves plan, review plans and active timer, and isolates account / guest histories', async () => {
+  const populate = async account => {
+    studyDb.setStudyAccount(account);
+    await studyDb.updateFocusTimer({ type: 'start' });
+    clock += 26 * 60_000;
+    await studyDb.updateFocusTimer({ type: 'reconcile' });
+    return studyDb.loadFocusSessions();
+  };
+  const guestSessions = await populate(null);
+  const otherSessions = await populate('clear-other-account');
+  await populate('clear-current-account');
+  await studyDb.saveSubject({ id: 'preserved-subject', name: 'رياضيات', color: '#c80' });
+  await studyDb.saveTask({ id: 'preserved-task', title: 'مراجعة', type: 'study', dueAt: '2026-10-25T10:00:00Z', priority: 'high', status: 'not-started' });
+  await studyDb.saveSettings({ studentName: 'طالبة', notificationsEnabled: true, reminderLeadMinutes: 45 });
+  const beforePlan = await studyDb.loadStudyData();
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open('fakker-study-planner-account-clear-current-account', 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const reviewPlans = [{ id: 'preserved-review', title: 'مراجعة محلية' }];
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction('settings', 'readwrite');
+    tx.objectStore('settings').put({ key: 'review-plans', value: reviewPlans });
+    tx.oncomplete = resolve;
+    tx.onabort = () => reject(tx.error);
+  });
+  await studyDb.updateFocusTimer({ type: 'next' });
+  const beforeTimer = (await studyDb.updateFocusTimer({ type: 'start' })).state;
+  await studyDb.clearFocusSessions();
+  assert.deepEqual(await studyDb.loadFocusSessions(), []);
+  assert.deepEqual(await studyDb.loadStudyData(), beforePlan);
+  assert.deepEqual((await studyDb.updateFocusTimer({ type: 'reconcile' })).state, beforeTimer);
+  const savedReviews = await new Promise((resolve, reject) => {
+    const request = db.transaction('settings', 'readonly').objectStore('settings').get('review-plans');
+    request.onsuccess = () => resolve(request.result.value);
+    request.onerror = () => reject(request.error);
+  });
+  assert.deepEqual(savedReviews, reviewPlans);
+  db.close();
+  await studyDb.clearFocusSessions();
+  studyDb.setStudyAccount('clear-other-account');
+  assert.deepEqual(await studyDb.loadFocusSessions(), otherSessions);
+  studyDb.setStudyAccount(null);
+  assert.deepEqual(await studyDb.loadFocusSessions(), guestSessions);
+  await studyDb.clearFocusSessions();
+  studyDb.setStudyAccount('clear-other-account');
+  assert.deepEqual(await studyDb.loadFocusSessions(), otherSessions);
+  studyDb.setStudyAccount(null);
+});
+
+test('aborted history deletion rejects without losing history or plan data', async () => {
+  studyDb.setStudyAccount('clear-failure-account');
+  await studyDb.updateFocusTimer({ type: 'start' });
+  clock += 26 * 60_000;
+  await studyDb.updateFocusTimer({ type: 'reconcile' });
+  const before = await studyDb.loadFocusSessions();
+  const plan = await studyDb.loadStudyData();
+  assert.equal(before.length, 1);
+  const originalDelete = IDBObjectStore.prototype.delete;
+  IDBObjectStore.prototype.delete = function(key) {
+    const request = originalDelete.call(this, key);
+    if (key === 'focus-sessions') this.transaction.abort();
+    return request;
+  };
+  try {
+    await assert.rejects(studyDb.clearFocusSessions());
+    assert.deepEqual(await studyDb.loadFocusSessions(), before);
+    assert.deepEqual(await studyDb.loadStudyData(), plan);
+  } finally {
+    IDBObjectStore.prototype.delete = originalDelete;
+    studyDb.setStudyAccount(null);
+  }
+});

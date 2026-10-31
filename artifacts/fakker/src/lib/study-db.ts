@@ -120,6 +120,11 @@ export async function loadFocusSessions(): Promise<FocusSession[]> {
   const record = await transact<{ key: string; value: unknown } | undefined>('settings', 'readonly', store => store.get('focus-sessions'));
   return validateFocusSessions(record?.value);
 }
+// Delete only the current workspace's history, even if its contents are corrupt.
+// The timer, study plan and other account databases are deliberately untouched.
+export async function clearFocusSessions(): Promise<void> {
+  await remove('settings', 'focus-sessions');
+}
 export async function loadStudyData(): Promise<StudyData> {
   const [subjects, tasks, settingsRecord] = await Promise.all([
     all<Subject>('subjects'), all<Task>('tasks'),

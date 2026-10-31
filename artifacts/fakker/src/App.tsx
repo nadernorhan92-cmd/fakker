@@ -262,7 +262,20 @@ function CalendarPage({data,tasks,selected,setSelected,cursor,setCursor,view,set
 }
 
 function StatisticsPage({data,tasks}:{data:StudyData;tasks:Task[]}) {
-  const { sessions, loading: sessionsLoading, error: sessionsError } = useFocusSessions();
+  const { sessions, loading: sessionsLoading, error: sessionsError, clearSessions } = useFocusSessions();
+  const [confirmClearSessions,setConfirmClearSessions]=useState(false);
+  const [clearSessionsError,setClearSessionsError]=useState('');
+  const [sessionsCleared,setSessionsCleared]=useState(false);
+  const removeSessions=async()=>{
+    setClearSessionsError('');
+    try {
+      await clearSessions();
+      setConfirmClearSessions(false);
+      setSessionsCleared(true);
+    } catch {
+      setClearSessionsError('تعذّر مسح سجل التركيز. لم يكتمل الحذف؛ حاول مرة أخرى.');
+    }
+  };
   const complete=tasks.filter(t=>t.status==='completed').length;
   const overdue=tasks.filter(t=>t.status!=='completed'&&new Date(t.dueAt)<new Date()).length;
   const pct=tasks.length?Math.round(complete/tasks.length*100):0;
@@ -308,12 +321,16 @@ function StatisticsPage({data,tasks}:{data:StudyData;tasks:Task[]}) {
       </section>
     </div>
     <section className="card" style={{marginTop:19}}><div className="section-head"><h3>سجل جلسات التركيز</h3><span className="quiet">محفوظ محليًا لهذا الحساب أو مساحة الضيف فقط</span></div>
+      <p className="quiet">مسح السجل يحذف جلسات التركيز من هذا الجهاز لهذه المساحة فقط، ولا يحذف خطتك أو يوقف المؤقّت الحالي.</p>
+      <button className="btn danger small" data-testid="button-clear-focus-sessions" disabled={sessionsLoading||(!sessionsError&&sessions.length===0)} onClick={()=>{setClearSessionsError('');setSessionsCleared(false);setConfirmClearSessions(true);}}><Trash2 size={14}/> مسح سجل التركيز المحلي</button>
+      {sessionsCleared&&<p role="status" data-testid="text-focus-sessions-cleared">مُسح سجل التركيز المحلي. بقيت خطتك وإعداداتك دون تغيير.</p>}
       {sessionsError?<p className="quiet">تعذّر قراءة سجل الجلسات.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:recentSessions.length?<div className="task-list">{recentSessions.map(session=>{
         const task=session.taskId?tasks.find(item=>item.id===session.taskId):undefined;
         const completedAt=new Date(session.completedAt);
         return <div className="task-row" key={session.id} data-testid={`row-focus-session-${session.id}`}><Clock3 size={16}/><div className="task-info"><strong>{session.taskId===null?'دون مهمة محددة':task?.title??'مهمة محذوفة'}</strong><small>{fmtDate(completedAt.toISOString(),{weekday:'short',day:'numeric',month:'short'})} · {completedAt.toLocaleTimeString('ar',{hour:'numeric',minute:'2-digit'})}</small></div><span className="pill completed">{durationLabel(session.durationMs)}</span></div>;
       })}</div>:<Empty title="سجلّك سيبدأ مع أول جلسة" description="تُسجّل جلسة التركيز المكتملة فقط، ولا يتغير وضع المهمة عند انتهائها."/>}
     </section>
+    {confirmClearSessions&&<ConfirmDialog title="مسح سجل التركيز المحلي؟" message="ستُحذف نهائيًا جميع جلسات التركيز المسجّلة على هذا الجهاز للحساب الحالي أو مساحة الضيف الحالية فقط. لن تُحذف المواد أو المهام أو خطط المراجعة أو الإعدادات، ولن يتوقف المؤقّت الحالي أو يتأثر سجل أي حساب آخر. لا يمكن التراجع عن هذا الحذف." error={clearSessionsError} onCancel={()=>setConfirmClearSessions(false)} onConfirm={removeSessions}/>}
   </div>;
 }
 
@@ -414,10 +431,10 @@ function SubjectDialog({initial,onClose,onSave}:{initial?:Subject;onClose:()=>vo
     </section>
   </div>;
 }
-function ConfirmDialog({title,message,onCancel,onConfirm}:{title:string;message:string;onCancel:()=>void;onConfirm:()=>void|Promise<void>}) {
-  useDialogKeyboard(onCancel);
+function ConfirmDialog({title,message,error,onCancel,onConfirm}:{title:string;message:string;error?:string;onCancel:()=>void;onConfirm:()=>void|Promise<void>}) {
   const [busy,setBusy]=useState(false);
-  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onCancel();}}><section className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" style={{maxWidth:420}}><h3 id="confirm-title">{title}</h3><p className="quiet" style={{fontSize:13,lineHeight:1.9}}>{message}</p><div className="form-actions"><button className="btn soft" disabled={busy} data-testid="button-cancel-delete" onClick={onCancel}>تراجع</button><button className="btn danger" disabled={busy} data-testid="button-confirm-delete" onClick={async()=>{if(busy)return;setBusy(true);try{await onConfirm();}finally{setBusy(false);}}}>{busy?'جارٍ الحذف…':'نعم، احذف'}</button></div></section></div>;
+  useDialogKeyboard(()=>{if(!busy)onCancel();});
+  return <div className="modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onCancel();}}><section className="modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message" style={{maxWidth:420}}><h3 id="confirm-title">{title}</h3><p id="confirm-message" className="quiet" style={{fontSize:13,lineHeight:1.9}}>{message}</p>{error&&<p className="ft-error" role="alert">{error}</p>}<div className="form-actions"><button className="btn soft" disabled={busy} data-testid="button-cancel-delete" onClick={onCancel}>تراجع</button><button className="btn danger" disabled={busy} data-testid="button-confirm-delete" onClick={async()=>{if(busy)return;setBusy(true);try{await onConfirm();}finally{setBusy(false);}}}>{busy?'جارٍ الحذف…':'نعم، احذف'}</button></div></section></div>;
 }
 
 export default App;

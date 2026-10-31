@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getStudyAccount, loadFocusSessions } from './study-db';
+import { clearFocusSessions, getStudyAccount, loadFocusSessions } from './study-db';
 import type { FocusSession } from './focus-timer';
 
 export function useFocusSessions() {
@@ -31,16 +31,34 @@ export function useFocusSessions() {
       ? new BroadcastChannel(`fakker-focus-${getStudyAccount() ?? 'guest'}`)
       : null;
     channel?.addEventListener('message', refresh);
+    window.addEventListener('fakker-focus-sessions-changed', refresh);
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
     void refresh();
     return () => {
       active = false;
       channel?.close();
+      window.removeEventListener('fakker-focus-sessions-changed', refresh);
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
   }, []);
 
-  return { sessions, loading, error };
+  const clearSessions = async () => {
+    await clearFocusSessions();
+    setSessions([]);
+    setError(null);
+    window.dispatchEvent(new Event('fakker-focus-sessions-changed'));
+    // Notifications are best-effort: a committed deletion must not be reported
+    // as a storage failure when a browser blocks cross-tab messaging.
+    try {
+      if ('BroadcastChannel' in window) {
+        const channel = new BroadcastChannel(`fakker-focus-${getStudyAccount() ?? 'guest'}`);
+        channel.postMessage('sessions-cleared');
+        channel.close();
+      }
+    } catch { /* Other tabs refresh on focus / visibility change as well. */ }
+  };
+
+  return { sessions, loading, error, clearSessions };
 }
