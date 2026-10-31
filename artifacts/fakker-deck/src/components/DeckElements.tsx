@@ -5,7 +5,7 @@ export function SlideBackdrop({ tone }: { tone?: 'rose' | 'cocoa' }) {
 }
 
 export function SlideHeader() {
-  return <header className="deck-header"><span>فَكّر</span><span className="deck-rule" /></header>;
+  return <header className="deck-header"><span>فَكّر</span><PartnerMarks /></header>;
 }
 
 export function SlideFooter({ page }: { page: string }) {

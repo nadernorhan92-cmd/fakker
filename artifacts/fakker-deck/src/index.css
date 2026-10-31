@@ -16,8 +16,8 @@
   --slide-bg: #fffdfb;
   --slide-text: #493b38;
   --slide-muted: #806f6a;
-  --font-display-family: 'Cairo', sans-serif;
-  --font-body-family: 'IBM Plex Sans Arabic', sans-serif;
+  --font-display-family: 'Alexandria', sans-serif;
+  --font-body-family: 'Tajawal', sans-serif;
   color-scheme: light;
 }
 
@@ -287,6 +287,25 @@ body {
   display: flex;
   align-items: center;
   gap: 1.5vw;
+}
+.deck-header .deck-brand-row {
+  gap: .75vw;
+}
+.deck-header .partner-mark {
+  gap: .35vw;
+  font-size: 1.5vw;
+}
+.deck-header .partner-mark svg {
+  width: 1.8vw;
+  height: 1.8vw;
+}
+.deck-header .partner-mark .partner-upload {
+  width: 1.8vw;
+  height: 1.8vw;
+  border-width: .08vw;
+}
+.deck-header .partner-divider {
+  height: 2.1vh;
 }
 .partner-mark {
   display: inline-flex;
