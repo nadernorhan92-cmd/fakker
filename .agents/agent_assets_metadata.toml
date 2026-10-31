@@ -14,3 +14,17 @@ mtime_ms = 1793468897280
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/d9efa26b-d906-4c65-9267-7c3e749c6276/dc7411c1-307d-4dd8-b060-8de4d80508c4"
 storage_version_token = "1793468897785325"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "9qnT7Ec8QoSv5Q6Zz4Nit"
+uri = "file://.local/outputs/Fakker---Project-Presentation-Updated.pdf"
+type = "pdf"
+title = "فَكّر — العرض المحدّث (PDF)"
+description = "نسخة PDF محدثة من العرض الكامل، 12 شريحة، مع الشعارات وخطوط العرض المحسّنة."
+logical_id = "4bb5faa1-8b10-4b75-8bc2-d13eb18944e8"
+content_hash = "sha256:179b62d32ec959d3d2b775b683bee2e807d2877d147a13a86a4a6442b35360ca"
+size = 1591707
+mtime_ms = 1793469797083
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/4bb5faa1-8b10-4b75-8bc2-d13eb18944e8/ab481837-591b-44f6-a098-ce4ef4b8c2ce"
+storage_version_token = "1793469797597581"
+content_type = "application/pdf"
