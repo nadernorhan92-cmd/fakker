@@ -42,3 +42,17 @@ mtime_ms = 1793480220220
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/53c6a2ea-c9c0-4e23-a339-59499d5ff743/f3ba7bc3-9a5e-4584-8ef4-55c42c59accd"
 storage_version_token = "1793480220759851"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "X7f_zBk97i4W1e9cl5tvT"
+uri = "file://.local/outputs/Fakker-Download.pdf"
+type = "pdf"
+title = "تنزيل PDF فَكّر على الجهاز"
+description = "اضغطي على الملف لفتحه، ثم اختاري تنزيل أو حفظ على الجهاز."
+logical_id = "1e1f8943-1993-499b-9261-6122f9197e7a"
+content_hash = "sha256:29854bb43e71d4fccb00257b8588ebe12a291db233d813cbbe4f9fd37154e366"
+size = 1596142
+mtime_ms = 1793480867668
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/1e1f8943-1993-499b-9261-6122f9197e7a/b5a19175-d24b-44a3-b9bf-1335ea68bf4b"
+storage_version_token = "1793480868103457"
+content_type = "application/pdf"
