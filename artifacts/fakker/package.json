@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:push-worker": "node --test scripts/test-push-worker.mjs",
     "test:focus-timer": "node --test scripts/test-focus-timer.mjs",
+    "test:focus-statistics": "node --test scripts/test-focus-statistics.mjs",
     "test:spaced-review": "node --test scripts/test-spaced-review.mjs",
     "test:backup": "node --test scripts/test-backup-roundtrip.mjs"
   },

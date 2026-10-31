@@ -22,6 +22,7 @@ import FocusTimer from '@/components/FocusTimer';
 import SpacedReviewPanel from '@/components/SpacedReviewPanel';
 import { getDueReminders, reminderKey, reminderTime } from '@/lib/reminders';
 import { useFocusSessions } from '@/lib/use-focus-sessions';
+import { focusRange, localDayKey, summarizeFocus, type FocusPeriod } from '@/lib/focus-statistics';
 
 import BackgroundReminders from '@/components/BackgroundReminders';
 import { syncBackgroundReminders, withReminderLock } from '@/lib/background-reminders';
@@ -263,6 +264,11 @@ function CalendarPage({data,tasks,selected,setSelected,cursor,setCursor,view,set
 
 function StatisticsPage({data,tasks}:{data:StudyData;tasks:Task[]}) {
   const { sessions, loading: sessionsLoading, error: sessionsError, clearSessions } = useFocusSessions();
+  const [focusPeriod,setFocusPeriod]=useState<FocusPeriod>('week');
+  const [customRange,setCustomRange]=useState(()=>focusRange('week',{start:'',end:''})!);
+  const range=focusRange(focusPeriod,customRange);
+  const focus=summarizeFocus(sessions,range);
+  const periodLabel=focusPeriod==='all'?'كل السجل':focusPeriod==='week'?'آخر ٧ أيام':focusPeriod==='month'?'آخر ٣٠ يومًا':'الفترة المخصصة';
   const [confirmClearSessions,setConfirmClearSessions]=useState(false);
   const [clearSessionsError,setClearSessionsError]=useState('');
   const [sessionsCleared,setSessionsCleared]=useState(false);
@@ -282,53 +288,56 @@ function StatisticsPage({data,tasks}:{data:StudyData;tasks:Task[]}) {
   const week=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);const key=todayKey(d);return {day:new Intl.DateTimeFormat('ar',{weekday:'short'}).format(d),count:tasks.filter(t=>t.status==='completed'&&t.completedAt&&todayKey(new Date(t.completedAt))===key).length};});
   const max=Math.max(1,...week.map(d=>d.count));
   const top=data.subjects.map(s=>({subject:s,count:tasks.filter(t=>t.subjectId===s.id&&t.status==='completed').length})).sort((a,b)=>b.count-a.count).slice(0,5);
-  const totalFocusMs=sessions.reduce((sum,session)=>sum+session.durationMs,0);
+  const totalFocusMs=focus.totalMs;
   const focusHours=totalFocusMs/3600000;
   const focusNumber=new Intl.NumberFormat('ar',{maximumFractionDigits:1});
-  const sevenDays=Array.from({length:7},(_,i)=>{
-    const date=new Date(); date.setDate(date.getDate()-6+i);
-    const key=todayKey(date);
-    const entries=sessions.filter(session=>todayKey(new Date(session.completedAt))===key);
-    return {key,label:new Intl.DateTimeFormat('ar',{weekday:'short',day:'numeric'}).format(date),count:entries.length,totalMs:entries.reduce((sum,session)=>sum+session.durationMs,0)};
-  });
-  const taskTotals=new Map<string,{taskId:string|null;count:number;totalMs:number}>();
-  for(const session of sessions){
-    const key=session.taskId??'__unassigned__';
-    const total=taskTotals.get(key)??{taskId:session.taskId,count:0,totalMs:0};
-    total.count++; total.totalMs+=session.durationMs; taskTotals.set(key,total);
-  }
-  const byTask=[...taskTotals.values()].sort((a,b)=>b.totalMs-a.totalMs);
-  const recentSessions=[...sessions].sort((a,b)=>b.completedAt-a.completedAt);
+  const focusDays=focus.days;
+  const byTask=focus.tasks;
+  const recentSessions=focus.sessions;
   const durationLabel=(ms:number)=>{
     const minutes=Math.round(ms/60000);
     return `${focusNumber.format(Math.floor(minutes/60))} س ${focusNumber.format(minutes%60)} د`;
   };
   return <div className="page"><Head eyebrow="التقدّم لا يُقاس بالكمال" title="إحصاءاتي" description="نظرة هادئة على ما أنجزته والوقت الذي خصصته."/>
-    <div className="grid stats-grid"><Stat title="مهام مكتملة" value={complete} sub="إنجازات تستحق التقدير" icon={<CheckCheck size={17}/>}/><Stat title="نسبة الإكمال" value={`${pct}٪`} sub={`من ${tasks.length} مهام مسجلة`} icon={<ChartNoAxesCombined size={17}/>}/><Stat title="مهام متأخرة" value={overdue} sub={overdue?'رتّب موعدها من قائمة المهام':'أنت على المسار'} icon={<AlarmClock size={17}/>}/><Stat title="وقت التركيز المسجّل" value={sessionsLoading?'…':sessionsError?'—':`${focusNumber.format(focusHours)} س`} sub={sessionsLoading?'جارٍ تحميل السجل':sessionsError?'تعذّر تحميل سجل الجلسات':`${sessions.length} جلسة تركيز مكتملة`} icon={<Clock3 size={17}/>}/></div>
+    <section className="card" style={{marginBottom:19}} aria-label="فترة إحصاءات التركيز">
+      <div className="section-head"><h3>فترة التركيز</h3><span className="quiet">تؤثر في وقت التركيز وملخصاته وسجله فقط</span></div>
+      <div className="filters">
+        <div className="field-wrap"><label htmlFor="focus-period">الفترة الزمنية</label><select id="focus-period" className="select" data-testid="select-focus-period" value={focusPeriod} onChange={event=>setFocusPeriod(event.target.value as FocusPeriod)}>
+          <option value="week">آخر ٧ أيام</option><option value="month">آخر ٣٠ يومًا</option><option value="custom">فترة مخصصة</option><option value="all">كل السجل</option>
+        </select></div>
+        {focusPeriod==='custom'&&<>
+          <div className="field-wrap"><label htmlFor="focus-start">من تاريخ</label><input id="focus-start" className="field" type="date" data-testid="input-focus-start" value={customRange.start} max={customRange.end||localDayKey(new Date())} aria-invalid={!!focus.error} aria-describedby={focus.error?'focus-range-error':undefined} onChange={event=>setCustomRange(value=>({...value,start:event.target.value}))}/></div>
+          <div className="field-wrap"><label htmlFor="focus-end">إلى تاريخ</label><input id="focus-end" className="field" type="date" data-testid="input-focus-end" value={customRange.end} min={customRange.start} aria-invalid={!!focus.error} aria-describedby={focus.error?'focus-range-error':undefined} onChange={event=>setCustomRange(value=>({...value,end:event.target.value}))}/></div>
+        </>}
+      </div>
+      {focus.error?<p id="focus-range-error" className="ft-error" role="alert">{focus.error}</p>:<p className="quiet" role="status" data-testid="text-focus-range">{periodLabel}{range?`: ${fmtDate(`${range.start}T12:00:00`,{day:'numeric',month:'short',year:'numeric'})} — ${fmtDate(`${range.end}T12:00:00`,{day:'numeric',month:'short',year:'numeric'})}`:''} · حسب يوم إكمال الجلسة بالتوقيت المحلي، شاملًا يوم البداية والنهاية.</p>}
+      <p className="quiet">تغيير الفترة لا يحذف أي جلسة. سجل التركيز محلي فقط ولا يُرفع للسحابة أو يدخل في النسخة الاحتياطية.</p>
+    </section>
+    <div className="grid stats-grid"><Stat title="مهام مكتملة" value={complete} sub="إنجازات تستحق التقدير" icon={<CheckCheck size={17}/>}/><Stat title="نسبة الإكمال" value={`${pct}٪`} sub={`من ${tasks.length} مهام مسجلة`} icon={<ChartNoAxesCombined size={17}/>}/><Stat title="مهام متأخرة" value={overdue} sub={overdue?'رتّب موعدها من قائمة المهام':'أنت على المسار'} icon={<AlarmClock size={17}/>}/><Stat title="وقت التركيز المسجّل" value={sessionsLoading?'…':sessionsError||focus.error?'—':`${focusNumber.format(focusHours)} س`} sub={sessionsLoading?'جارٍ تحميل السجل':sessionsError?'تعذّر تحميل سجل الجلسات':focus.error?'اختر فترة صحيحة':`${focus.sessions.length} جلسة مكتملة · ${periodLabel}`} icon={<Clock3 size={17}/>}/></div>
     {sessionsError&&<p className="ft-error" role="alert" data-testid="text-focus-sessions-error">{sessionsError}</p>}
     <div className="grid dashboard-grid"><section className="card"><div className="section-head"><h3>إنجازات آخر سبعة أيام</h3><span className="quiet">حسب تاريخ الإكمال</span></div><div className="chart" role="img" aria-label="مخطط المهام المكتملة خلال الأسبوع"><div className="chart-bars">{week.map((d,i)=><div className="chart-col" key={`${d.day}-${i}`}><span className="chart-value">{d.count||''}</span><div className="bar-stack"><div className="bar" style={{height:`${Math.max(3,(d.count/max)*100)}%`}}/></div><span className="chart-label">{d.day}</span></div>)}</div></div></section>
       <section className="card"><div className="section-head"><h3>موادك النشطة</h3><BookOpen size={17} color="#8374b8"/></div>{top.length&&top.some(x=>x.count)?<div className="task-list">{top.filter(x=>x.count>0).map(({subject,count})=><div className="task-row" key={subject.id}><span className="subject-dot" style={{background:subject.color,width:12,height:12}}/><div className="task-info"><strong>{subject.name}</strong><small>{count} مهام مكتملة</small></div><span className="pill completed">{count}</span></div>)}</div>:<Empty title="كل إنجاز يبدأ بخطوة" description="أكمل مهمة مرتبطة بمادة لتظهر هنا."/>}</section>
     </div>
     <div className="grid dashboard-grid" style={{marginTop:19}}>
-      <section className="card"><div className="section-head"><h3>وقت التركيز حسب اليوم</h3><span className="quiet">آخر سبعة أيام</span></div>
-        {sessionsError?<p className="quiet">تعذّر عرض الملخص اليومي.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:sessions.length?<div className="task-list">{sevenDays.map(day=><div className="task-row" key={day.key}><div className="task-info"><strong>{day.label}</strong><small>{day.count} جلسة مكتملة</small></div><span className="pill">{durationLabel(day.totalMs)}</span></div>)}</div>:<Empty title="لا توجد جلسات مكتملة بعد" description="ستظهر هنا مدة التركيز بعد إكمال جلسة المؤقّت."/>}
+      <section className="card"><div className="section-head"><h3>وقت التركيز حسب اليوم</h3><span className="quiet">{periodLabel} · الأيام ذات الجلسات فقط</span></div>
+        {focus.error?<p className="quiet">اختر فترة صحيحة لعرض الملخص.</p>:sessionsError?<p className="quiet">تعذّر عرض الملخص اليومي.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:focusDays.length?<div className="task-list">{focusDays.map(day=><div className="task-row" key={day.key}><div className="task-info"><strong>{fmtDate(`${day.key}T12:00:00`,{weekday:'short',day:'numeric',month:'short',year:'numeric'})}</strong><small>{day.count} جلسة مكتملة</small></div><span className="pill">{durationLabel(day.totalMs)}</span></div>)}</div>:<Empty title="لا توجد جلسات في هذه الفترة" description="اختر فترة أخرى أو أكمل جلسة تركيز لتظهر هنا."/>}
       </section>
       <section className="card"><div className="section-head"><h3>وقت التركيز حسب المهمة</h3><span className="quiet">{byTask.length} مهام</span></div>
-        {sessionsError?<p className="quiet">تعذّر عرض الملخص حسب المهمة.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:byTask.length?<div className="task-list">{byTask.map(({taskId,count,totalMs})=>{
+        {focus.error?<p className="quiet">اختر فترة صحيحة لعرض الملخص.</p>:sessionsError?<p className="quiet">تعذّر عرض الملخص حسب المهمة.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:byTask.length?<div className="task-list">{byTask.map(({taskId,count,totalMs})=>{
           const task=tasks.find(item=>item.id===taskId);
           return <div className="task-row" key={taskId??'__unassigned__'}><div className="task-info"><strong>{taskId===null?'دون مهمة محددة':task?.title??'مهمة محذوفة'}</strong><small>{count} جلسة مكتملة</small></div><span className="pill">{durationLabel(totalMs)}</span></div>;
         })}</div>:<Empty title="لا توجد بيانات لعرضها" description="اربط جلسة بمهمة اختياريًا لتظهر ضمن هذا الملخص."/>}
       </section>
     </div>
     <section className="card" style={{marginTop:19}}><div className="section-head"><h3>سجل جلسات التركيز</h3><span className="quiet">محفوظ محليًا لهذا الحساب أو مساحة الضيف فقط</span></div>
-      <p className="quiet">مسح السجل يحذف جلسات التركيز من هذا الجهاز لهذه المساحة فقط، ولا يحذف خطتك أو يوقف المؤقّت الحالي.</p>
+      <p className="quiet">المعروض: {periodLabel}. مسح السجل يحذف جميع الجلسات، بما فيها الجلسات خارج الفترة المختارة، من هذا الجهاز لهذه المساحة فقط، ولا يحذف خطتك أو يوقف المؤقّت الحالي.</p>
       <button className="btn danger small" data-testid="button-clear-focus-sessions" disabled={sessionsLoading||(!sessionsError&&sessions.length===0)} onClick={()=>{setClearSessionsError('');setSessionsCleared(false);setConfirmClearSessions(true);}}><Trash2 size={14}/> مسح سجل التركيز المحلي</button>
       {sessionsCleared&&<p role="status" data-testid="text-focus-sessions-cleared">مُسح سجل التركيز المحلي. بقيت خطتك وإعداداتك دون تغيير.</p>}
-      {sessionsError?<p className="quiet">تعذّر قراءة سجل الجلسات.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:recentSessions.length?<div className="task-list">{recentSessions.map(session=>{
+      {focus.error?<p className="quiet">اختر فترة صحيحة لعرض السجل.</p>:sessionsError?<p className="quiet">تعذّر قراءة سجل الجلسات.</p>:sessionsLoading?<p className="quiet">جارٍ تحميل سجل الجلسات…</p>:recentSessions.length?<div className="task-list">{recentSessions.map(session=>{
         const task=session.taskId?tasks.find(item=>item.id===session.taskId):undefined;
         const completedAt=new Date(session.completedAt);
         return <div className="task-row" key={session.id} data-testid={`row-focus-session-${session.id}`}><Clock3 size={16}/><div className="task-info"><strong>{session.taskId===null?'دون مهمة محددة':task?.title??'مهمة محذوفة'}</strong><small>{fmtDate(completedAt.toISOString(),{weekday:'short',day:'numeric',month:'short'})} · {completedAt.toLocaleTimeString('ar',{hour:'numeric',minute:'2-digit'})}</small></div><span className="pill completed">{durationLabel(session.durationMs)}</span></div>;
-      })}</div>:<Empty title="سجلّك سيبدأ مع أول جلسة" description="تُسجّل جلسة التركيز المكتملة فقط، ولا يتغير وضع المهمة عند انتهائها."/>}
+      })}</div>:<Empty title="لا توجد جلسات في هذه الفترة" description="اختر كل السجل لعرض الجلسات الأخرى. تُسجّل جلسات التركيز المكتملة فقط."/>}
     </section>
     {confirmClearSessions&&<ConfirmDialog title="مسح سجل التركيز المحلي؟" message="ستُحذف نهائيًا جميع جلسات التركيز المسجّلة على هذا الجهاز للحساب الحالي أو مساحة الضيف الحالية فقط. لن تُحذف المواد أو المهام أو خطط المراجعة أو الإعدادات، ولن يتوقف المؤقّت الحالي أو يتأثر سجل أي حساب آخر. لا يمكن التراجع عن هذا الحذف." error={clearSessionsError} onCancel={()=>setConfirmClearSessions(false)} onConfirm={removeSessions}/>}
   </div>;
