@@ -28,3 +28,17 @@ mtime_ms = 1793469797083
 storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/4bb5faa1-8b10-4b75-8bc2-d13eb18944e8/a9da1987-7667-45db-9b96-7c90e5529c20"
 storage_version_token = "1793474006730773"
 content_type = "application/pdf"
+
+[[outputs]]
+id = "TwxYRq7W-u5QzvGo3Cjy3"
+uri = "file://.local/outputs/Fakker---Replit-Logo-Updated.pdf"
+type = "pdf"
+title = "فَكّر — شعار Replit المحدّث (PDF)"
+description = "النسخة المحدّثة من العرض، مع شعار Replit المصحّح."
+logical_id = "53c6a2ea-c9c0-4e23-a339-59499d5ff743"
+content_hash = "sha256:0a54484c37866ce820d6907ae8dd861610b80681319af0e1f11e37dad19e45db"
+size = 1596142
+mtime_ms = 1793480220220
+storage_uri = "gcs://replit-rams-assets-reed/rams/assets/repl:6b24b832-6d0c-426d-953e-cecc48e570a1/53c6a2ea-c9c0-4e23-a339-59499d5ff743/f3ba7bc3-9a5e-4584-8ef4-55c42c59accd"
+storage_version_token = "1793480220759851"
+content_type = "application/pdf"
