@@ -12,6 +12,8 @@ const loadSource = path => readFile(new URL(path, import.meta.url), 'utf8');
 const backupModule = await import(dataModule(await loadSource('../src/lib/backup.ts')));
 const reviewSource = await loadSource('../src/lib/spaced-review.ts');
 const reviewModule = await import(dataModule(reviewSource));
+const planMergeSource = await loadSource('../src/lib/plan-merge.ts');
+const planMergeModule = await import(dataModule(planMergeSource));
 
 globalThis.indexedDB = indexedDB;
 globalThis.window = { indexedDB };
@@ -30,6 +32,59 @@ dbSource = dbSource
     `const { mergeImportedReviewPlans, planReviewChange } = await import(${JSON.stringify(dataModule(reviewSource))});`,
   );
 const studyDb = await import(dataModule(dbSource));
+globalThis.__planDataIsolationStudyDb = studyDb;
+let cloudSyncSource = await loadSource('../src/lib/cloud-sync.ts');
+cloudSyncSource = cloudSyncSource
+  .replace(
+    /^import \{ applyCloudPlan, getStudyAccount, loadCloudBase, loadStudyData, type PlanRecords \} from '\.\/study-db';$/m,
+    'const { applyCloudPlan, getStudyAccount, loadCloudBase, loadStudyData } = globalThis.__planDataIsolationStudyDb;',
+  )
+  .replace(
+    /^import \{ withReminderLock \} from '\.\/background-reminders';$/m,
+    'const withReminderLock = work => work();',
+  )
+  .replace(
+    /^import \{ mergePlans, type Conflict \} from '\.\/plan-merge';$/m,
+    `const { mergePlans } = await import(${JSON.stringify(dataModule(planMergeSource))});`,
+  );
+const cloudSyncModule = await import(dataModule(cloudSyncSource));
+
+async function writeSetting(key, value) {
+  const dbName = studyDb.getStudyAccount()
+    ? `fakker-study-planner-account-${studyDb.getStudyAccount()}`
+    : 'fakker-study-planner';
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(dbName, 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction('settings', 'readwrite');
+    tx.objectStore('settings').put({ key, value });
+    tx.oncomplete = resolve;
+    tx.onabort = tx.onerror = () => reject(tx.error);
+  });
+  db.close();
+}
+
+async function readSetting(key) {
+  const dbName = studyDb.getStudyAccount()
+    ? `fakker-study-planner-account-${studyDb.getStudyAccount()}`
+    : 'fakker-study-planner';
+  const db = await new Promise((resolve, reject) => {
+    const request = indexedDB.open(dbName, 1);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const value = await new Promise((resolve, reject) => {
+    const tx = db.transaction('settings', 'readonly');
+    const request = tx.objectStore('settings').get(key);
+    request.onsuccess = () => resolve(request.result?.value);
+    request.onerror = () => reject(request.error);
+  });
+  db.close();
+  return value;
+}
 
 test('backup v2 preserves managed review plans, task links, and still reads legacy v1', () => {
   const subject = { id: 'math', name: 'الرياضيات', color: '#8879c4' };
@@ -52,6 +107,98 @@ test('backup v2 preserves managed review plans, task links, and still reads lega
   assert.deepEqual(withoutPlans.reviewPlans, []);
   assert.equal(withoutPlans.tasks[1].reviewPlanId, undefined);
   assert.throws(() => backupModule.parseBackup(JSON.stringify({ ...exported, reviewPlans: [] })));
+});
+
+test('backup export and restore exclude focus data and preserve the local timer and history', async () => {
+  studyDb.setStudyAccount(`backup-focus-isolation-${crypto.randomUUID()}`);
+  await studyDb.loadStudyData();
+  const localTimer = {
+    phase: 'focus', status: 'running', focusMinutes: 25, breakMinutes: 5,
+    taskId: null, remainingMs: 900_000, endsAt: Date.now() + 900_000,
+  };
+  const localSessions = [{
+    id: 'device-only-focus-session', taskId: null, durationMs: 25 * 60_000, completedAt: Date.now(),
+  }];
+  await writeSetting('focus-timer', localTimer);
+  await writeSetting('focus-sessions', localSessions);
+
+  const plan = await studyDb.loadStudyData();
+  const backup = backupModule.makeBackup(plan.subjects, plan.tasks, await studyDb.loadReviewPlans());
+  const serialized = JSON.stringify(backup);
+  assert.deepEqual(Object.keys(backup).sort(), ['createdAt', 'format', 'reviewPlans', 'subjects', 'tasks', 'version']);
+  assert.doesNotMatch(serialized, /focus-timer|focus-sessions|device-only-focus-session/);
+
+  const restored = backupModule.parseBackup(serialized);
+  await studyDb.mergeStudyData({ ...restored, includeReviewPlans: true });
+  assert.deepEqual(await readSetting('focus-timer'), localTimer);
+  assert.deepEqual(await studyDb.loadFocusSessions(), localSessions);
+});
+
+test('cloud sync applies plan-only data, preserves focus records, and keeps upload consent explicit', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    studyDb.setStudyAccount(`cloud-focus-isolation-${crypto.randomUUID()}`);
+    await studyDb.loadStudyData();
+    const localTimer = {
+      phase: 'focus', status: 'paused', focusMinutes: 40, breakMinutes: 10,
+      taskId: null, remainingMs: 1_200_000, endsAt: null,
+    };
+    const localSessions = [{
+      id: 'cloud-device-only-session', taskId: null, durationMs: 40 * 60_000, completedAt: Date.now(),
+    }];
+    await writeSetting('focus-timer', localTimer);
+    await writeSetting('focus-sessions', localSessions);
+
+    const remotePlan = {
+      subjects: [{ id: 'cloud-math', name: 'الرياضيات', color: '#8879c4' }],
+      tasks: [{
+        id: 'cloud-task', title: 'درس من السحابة', subjectId: 'cloud-math',
+        type: 'study', dueAt: '2026-11-01T12:00:00.000Z', priority: 'medium', status: 'not-started',
+      }],
+    };
+    const requests = [];
+    globalThis.fetch = async (_url, options) => {
+      requests.push({ method: options.method, body: options.body ? JSON.parse(options.body) : undefined });
+      return Response.json({ plan: remotePlan, revision: 'cloud-revision' });
+    };
+    await cloudSyncModule.synchronize(false, {});
+    assert.deepEqual(requests.map(request => request.method), ['GET']);
+    assert.deepEqual((await studyDb.loadStudyData()).subjects, remotePlan.subjects);
+    assert.deepEqual((await studyDb.loadStudyData()).tasks, remotePlan.tasks);
+    assert.deepEqual(await readSetting('focus-timer'), localTimer);
+    assert.deepEqual(await studyDb.loadFocusSessions(), localSessions);
+
+    studyDb.setStudyAccount(`cloud-upload-focus-isolation-${crypto.randomUUID()}`);
+    await studyDb.loadStudyData();
+    await writeSetting('focus-timer', localTimer);
+    await writeSetting('focus-sessions', localSessions);
+    const localSubject = { id: 'local-math', name: 'العلوم', color: '#aa7755' };
+    const localTask = {
+      id: 'local-task', title: 'درس محلي', subjectId: localSubject.id,
+      type: 'study', dueAt: '2026-11-02T12:00:00.000Z', priority: 'medium', status: 'not-started',
+    };
+    await studyDb.saveSubject(localSubject);
+    await studyDb.saveTask(localTask);
+    requests.length = 0;
+    const emptyPlan = { subjects: [], tasks: [] };
+    globalThis.fetch = async (_url, options) => {
+      requests.push({ method: options.method, body: options.body ? JSON.parse(options.body) : undefined });
+      return Response.json({
+        plan: options.method === 'PUT' ? options.body && JSON.parse(options.body).plan : emptyPlan,
+        revision: options.method === 'PUT' ? 'saved-revision' : 'initial-revision',
+      });
+    };
+    await cloudSyncModule.synchronize(true, {});
+    assert.deepEqual(requests.map(request => request.method), ['GET', 'PUT']);
+    assert.equal(requests[1].body.consent, true);
+    assert.deepEqual(Object.keys(requests[1].body).sort(), ['consent', 'plan', 'revision']);
+    assert.deepEqual(Object.keys(requests[1].body.plan).sort(), ['subjects', 'tasks']);
+    assert.doesNotMatch(JSON.stringify(requests[1].body), /focus-timer|focus-sessions|cloud-device-only-session/);
+    assert.deepEqual(await readSetting('focus-timer'), localTimer);
+    assert.deepEqual(await studyDb.loadFocusSessions(), localSessions);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('restored plans remain editable and cancelable without removing student tasks or duplicating a series', async () => {
